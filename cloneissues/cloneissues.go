@@ -27,7 +27,7 @@ func main() {
 		DestinationProject string `properties:"destinationproject"`
 		JQL string `properties:"jql"`
 		CloneSubtasks bool `properties:"clonesubtasks"`
-
+		AddLabel string `properties:"label"` //to be implemented
 	}
 	var cfg Config
 	if err := p.Decode(&cfg); err != nil {
@@ -138,7 +138,7 @@ func main() {
 }
 
 func createIssue(iss jira.Issue, dproj *jira.Project, jiraClient *jira.Client) (*jira.Issue, error) {
-	//Clone, link, Label and Comment issues
+	//Clone, link, SpaceCategory and Comment issues
 	newIssue := new(jira.Issue)
 	issueFields := new(jira.IssueFields)
 	newIssue.Fields = issueFields
@@ -164,7 +164,7 @@ func createIssue(iss jira.Issue, dproj *jira.Project, jiraClient *jira.Client) (
 	return createdIss, err
 }
 func createSubIssue(iss jira.Subtasks, dproj *jira.Project, jiraClient *jira.Client, parent jira.Issue) (*jira.Issue, error) {
-	//Clone, link, Label and Comment issues
+	//Clone, link, SpaceCategory and Comment issues
 	newIssue := new(jira.Issue)
 	issueFields := new(jira.IssueFields)
 	newIssue.Fields = issueFields
