@@ -10,15 +10,6 @@ import (
 	"strings"
 )
 
-type GroupSyncType struct {
-	AdGroup    string
-	LocalGroup string
-}
-var GroupSyncs = []GroupSyncType{
-	{AdGroup: "AD Group 1", LocalGroup: "Local 1"},
-	{AdGroup: "AD Group 2", LocalGroup: "Local 2"},
-}
-
 func difference(a []string, b map[string]string) []string {
 	mb := make(map[string]struct{}, len(b))
 	for _, x := range b {
@@ -133,12 +124,12 @@ func SyncGroupInConfluence(adUnames []string, cfg Config, client *jira.Client, t
 	fmt.Printf("SyncGroup AdGroup: %s LocalGroup: %s \n", cfg.ADgroup, cfg.Localgroup)
 	fmt.Printf("\n")
 	adUnames, _ = ad_utils.GetUnamesInGroup(cfg.ADgroup)
-	fmt.Printf("adUnames: %s \n", adUnames)
+	fmt.Printf("adUnames(%v): %s \n", len(adUnames), adUnames)
 
 	getUnamesInJIRAGroup(client, cfg, toolGroupMemberNames)
 
 	notInJIRA := difference(adUnames, toolGroupMemberNames)
-	fmt.Printf("notInJIRA: %s \n", notInJIRA)
+	fmt.Printf("notInJIRA(%v): %s \n", len(notInJIRA), notInJIRA)
 
 	notInAD := difference2(toolGroupMemberNames, adUnames)
 	fmt.Printf("notInAD: %s \n", notInAD)
