@@ -77,6 +77,25 @@ func main() {
 		log.Fatal(err)
 	}
 
+	toolClient := toollogin(cfg)
+
+	initReport(cfg)
+	ad_utils.InitAD(cfg.Bindusername, cfg.Bindpassword)
+
+	if cfg.Simple {
+		SyncGroupInTool(cfg, toolClient)
+	} else {
+		for _, syn := range GroupSyncs {
+			cfg.ADgroup = syn.AdGroup
+			cfg.Localgroup = syn.LocalGroup
+			SyncGroupInTool(cfg, toolClient)
+		}
+	}
+	endReport(cfg)
+	ad_utils.CloseAD()
+}
+
+func toollogin(cfg Config) *jira.Client {
 	tp := jira.BasicAuthTransport{
 		Username: strings.TrimSpace(cfg.User),
 		Password: strings.TrimSpace(cfg.Pass),
@@ -85,29 +104,14 @@ func main() {
 	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.Host))
 	if err != nil {
 		fmt.Printf("\nerror: %v\n", err)
-		return
+		return nil
 	}
-	initReport(cfg)
-
-	ad_utils.InitAD(cfg.Bindusername, cfg.Bindpassword)
-
-	if cfg.Simple {
-		SyncGroupInConfluence(cfg, jiraClient)
-	} else {
-		for _, syn := range GroupSyncs {
-			//var adUnames []ad_utils.ADUser
-			cfg.ADgroup = syn.AdGroup
-			cfg.Localgroup = syn.LocalGroup
-			SyncGroupInConfluence(cfg, jiraClient)
-		}
-	}
-	endReport(cfg)
-	ad_utils.CloseAD()
+	return jiraClient
 }
 
-func SyncGroupInConfluence(cfg Config, client *jira.Client) {
+func SyncGroupInTool(cfg Config, client *jira.Client) {
 	var toolGroupMemberNames map[string]ad_utils.ADUser
-	toolGroupMemberNames = make(map[string]ad_utils.ADUser)
+
 	fmt.Printf("\n")
 	fmt.Printf("SyncGroup AdGroup: %s LocalGroup: %s \n", cfg.ADgroup, cfg.Localgroup)
 	fmt.Printf("\n")
@@ -120,24 +124,21 @@ func SyncGroupInConfluence(cfg Config, client *jira.Client) {
 	if cfg.Report {
 		if !cfg.Limited {
 			for _, adu := range adUnames {
-				//			var row = []string{"AD group", "group", "fun", "Name", "Uname"}
 				var row = []string{"AD Names", cfg.ADgroup, cfg.Localgroup, adu.Name, adu.Uname}
 				excelutils.WriteColumnsln(row)
 			}
 		}
 		for _, aderr := range aderrs {
-			//			var row = []string{"AD group", "group", "fun", "Name", "Uname"}
 			var row = []string{"AD Errors", cfg.ADgroup, cfg.Localgroup, aderr.Name, aderr.Uname, aderr.Err}
 			excelutils.WriteColumnsln(row)
 		}
 
 	}
 	if cfg.Localgroup != "" {
-		getUnamesInJIRAGroup(client, cfg.Localgroup, toolGroupMemberNames)
+		toolGroupMemberNames = getUnamesInJIRAGroup(client, cfg.Localgroup)
 		if cfg.Report {
 			if !cfg.Limited {
 				for _, tgm := range toolGroupMemberNames {
-					//			var row = []string{"AD group", "group", "fun", "Name", "Uname"}
 					var row = []string{"JIRA Users", cfg.ADgroup, cfg.Localgroup, tgm.Name, tgm.Uname}
 					excelutils.WriteColumnsln(row)
 				}
@@ -146,12 +147,10 @@ func SyncGroupInConfluence(cfg Config, client *jira.Client) {
 	}
 
 	if cfg.Localgroup != "" && cfg.ADgroup != "" {
-
-		notInJIRA := ad_utils.Difference(adUnames, toolGroupMemberNames)
-		fmt.Printf("notInJIRA(%v): %s \n", len(notInJIRA), notInJIRA)
+		notInTool := ad_utils.Difference(adUnames, toolGroupMemberNames)
+		fmt.Printf("notInJIRA(%v): %s \n", len(notInTool), notInTool)
 		if cfg.Report {
-			for _, nji := range notInJIRA {
-				//			var row = []string{"AD group", "group", "fun", "Name", "Uname"}
+			for _, nji := range notInTool {
 				var row = []string{"Not in JIRA", cfg.ADgroup, cfg.Localgroup, nji.Name, nji.Uname}
 				excelutils.WriteColumnsln(row)
 			}
@@ -161,50 +160,48 @@ func SyncGroupInConfluence(cfg Config, client *jira.Client) {
 		fmt.Printf("notInAD: %s \n", notInAD)
 		if cfg.Report {
 			for _, nad := range notInAD {
-				//			var row = []string{"AD group", "group", "fun", "Name", "Uname"}
 				var row = []string{"Not in AD", cfg.ADgroup, cfg.Localgroup, nad.Name, nad.Uname}
 				excelutils.WriteColumnsln(row)
 			}
 		}
 
 		if cfg.AddOperation {
-			for _, user := range notInJIRA {
-
-				fmt.Printf("Add user. Group: %s status: %s \n", cfg.Localgroup, user)
-				_, _, err := client.Group.Add(cfg.Localgroup, user.Uname)
+			for _, notin := range notInTool {
+				fmt.Printf("Add user. Group: %s status: %s \n", cfg.Localgroup, notin)
+				_, _, err := client.Group.Add(cfg.Localgroup, notin.Uname)
 				if err != nil {
-					fmt.Printf("Failed to add user. Group: %s status: %s \n", cfg.Localgroup, user)
+					fmt.Printf("Failed to add user. Group: %s status: %s \n", cfg.Localgroup, notin)
 				}
 			}
 		}
 	}
 }
 
-func getUnamesInJIRAGroup(client *jira.Client, localgroup string, groupMemberNames map[string]ad_utils.ADUser) {
-
+func getUnamesInJIRAGroup(client *jira.Client, localgroup string) map[string]ad_utils.ADUser {
+	groupMemberNames := make(map[string]ad_utils.ADUser)
 	cont := true
 	start := 0
 	max := 50
 	for cont {
 
-		jiraGroupMembers, _, err := client.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max})
+		groupMembers, _, err := client.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max})
 		if err != nil {
 			panic(err)
 		}
 
-		for _, jiramember := range jiraGroupMembers {
-			if _, ok := groupMemberNames[jiramember.Name]; !ok {
+		for _, member := range groupMembers {
+			if _, ok := groupMemberNames[member.Name]; !ok {
 				var newUser ad_utils.ADUser
-				newUser.Name = jiramember.DisplayName
-				newUser.Uname = jiramember.Name
-				groupMemberNames[jiramember.Name] = newUser
+				newUser.Uname = member.Name
+				newUser.Name = member.DisplayName
+				groupMemberNames[member.Name] = newUser
 			}
 		}
-		if len(jiraGroupMembers) != max {
+		if len(groupMembers) != max {
 			cont = false
 		} else {
 			start = start + max
 		}
 	}
-
+	return groupMemberNames
 }
