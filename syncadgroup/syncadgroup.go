@@ -14,19 +14,19 @@ import (
 
 // or through Decode
 type Config struct {
-	Host         string `properties:"host"`
-	User         string `properties:"user"`
-	Pass         string `properties:"password"`
-	Simple       bool   `properties:"simple"`
-	AddOperation bool   `properties:"add"`
+	Host            string `properties:"host"`
+	User            string `properties:"user"`
+	Pass            string `properties:"password"`
+	Simple          bool   `properties:"simple"`
+	AddOperation    bool   `properties:"add"`
 	RemoveOperation bool   `properties:"remove"`
-	Report       bool   `properties:"report"`
-	Limited      bool   `properties:"limited"`
-	AdGroup      string `properties:"adgroup"`
-	Localgroup   string `properties:"localgroup"`
-	File         string `properties:"file"`
-	Bindusername string `properties:"bindusername"`
-	Bindpassword string `properties:"bindpassword"`
+	Report          bool   `properties:"report"`
+	Limited         bool   `properties:"limited"`
+	AdGroup         string `properties:"adgroup"`
+	Localgroup      string `properties:"localgroup"`
+	File            string `properties:"file"`
+	Bindusername    string `properties:"bindusername"`
+	Bindpassword    string `properties:"bindpassword"`
 }
 
 func initReport(cfg Config) {
@@ -63,7 +63,7 @@ func initReport(cfg Config) {
 		excelutils.WiteCellln("Report")
 
 		excelutils.AutoFilterStart()
-		var headers = []string{"Report Function", "AD group", "Local Group", "Name", "Uname", "Mail","Error"}
+		var headers = []string{"Report Function", "AD group", "Local Group", "Name", "Uname", "Mail", "Error", "DN"}
 		excelutils.WriteColumnsHeaderln(headers)
 	}
 }
@@ -125,12 +125,12 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 	if cfg.Report {
 		if !cfg.Limited {
 			for _, adu := range adUnames {
-				var row = []string{"AD Names", cfg.AdGroup, cfg.Localgroup, adu.Name, adu.Uname, adu.Mail, adu.Err}
+				var row = []string{"AD Names", cfg.AdGroup, cfg.Localgroup, adu.Name, adu.Uname, adu.Mail, adu.Err, adu.DN}
 				excelutils.WriteColumnsln(row)
 			}
 		}
 		for _, aderr := range aderrs {
-			var row = []string{"AD Errors", cfg.AdGroup, cfg.Localgroup, aderr.Name, aderr.Uname, aderr.Mail, aderr.Err}
+			var row = []string{"AD Errors", cfg.AdGroup, cfg.Localgroup, aderr.Name, aderr.Uname, aderr.Mail, aderr.Err, aderr.DN}
 			excelutils.WriteColumnsln(row)
 		}
 	}
@@ -139,7 +139,7 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 		if cfg.Report {
 			if !cfg.Limited {
 				for _, tgm := range toolGroupMemberNames {
-					var row = []string{"JIRA Users", cfg.AdGroup, cfg.Localgroup, tgm.Name, tgm.Uname, tgm.Mail, tgm.Err}
+					var row = []string{"JIRA Users", cfg.AdGroup, cfg.Localgroup, tgm.Name, tgm.Uname, tgm.Mail, tgm.Err, tgm.DN}
 					excelutils.WriteColumnsln(row)
 				}
 			}
@@ -147,10 +147,10 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 	}
 	if cfg.Localgroup != "" && cfg.AdGroup != "" {
 		notInTool := ad_utils.Difference(adUnames, toolGroupMemberNames)
-		fmt.Printf("notInJIRA(%v): %s \n", len(notInTool), notInTool)
+		fmt.Printf("Not In Tool(%v): %s \n", len(notInTool), notInTool)
 		if cfg.Report {
 			for _, nji := range notInTool {
-				var row = []string{"AD group users not found in Tool user group", cfg.AdGroup, cfg.Localgroup, nji.Name, nji.Uname, nji.Mail, nji.Err}
+				var row = []string{"AD group users not found in Tool user group", cfg.AdGroup, cfg.Localgroup, nji.Name, nji.Uname, nji.Mail, nji.Err, nji.DN}
 				excelutils.WriteColumnsln(row)
 			}
 		}
@@ -158,25 +158,34 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 		fmt.Printf("notInAD: %s \n", notInAD)
 		if cfg.Report {
 			for _, nad := range notInAD {
-				var row = []string{"Tool user group member not found in AD", cfg.AdGroup, cfg.Localgroup, nad.Name, nad.Uname, nad.Mail, nad.Err}
+				var row = []string{"Tool user group member not found in AD", cfg.AdGroup, cfg.Localgroup, nad.Name, nad.Uname, nad.Mail, nad.Err, nad.DN}
 				excelutils.WriteColumnsln(row)
 			}
 		}
 		if cfg.AddOperation {
 			for _, notin := range notInTool {
-				fmt.Printf("Add user. Group: %s status: %s \n", cfg.Localgroup, notin)
-				_, _, err := client.Group.Add(cfg.Localgroup, notin.Uname)
-				if err != nil {
-					fmt.Printf("Failed to add user. Group: %s status: %s \n", cfg.Localgroup, notin)
+				if notin.Err == "" {
+					fmt.Printf("Add user. Group: %s status: %s \n", cfg.Localgroup, notin)
+					_, _, err := client.Group.Add(cfg.Localgroup, notin.Uname)
+					if err != nil {
+						fmt.Printf("Failed to add user. Group: %s status: %s \n", cfg.Localgroup, notin)
+					}
+				} else {
+					fmt.Printf("Ad Problems skipping add: %s \n", notin.Uname)
 				}
+
 			}
 		}
 		if cfg.RemoveOperation {
 			for _, notin := range notInAD {
-				fmt.Printf("Remove user. Group: %s status: %s \n", cfg.Localgroup, notin)
-				 _, err := client.Group.Remove(cfg.Localgroup, notin.Uname)
-				if err != nil {
-					fmt.Printf("Failed to remove user. Group: %s status: %s \n", cfg.Localgroup, notin)
+				if notin.Err == "" {
+					fmt.Printf("Remove user. Group: %s status: %s \n", cfg.Localgroup, notin)
+					_, err := client.Group.Remove(cfg.Localgroup, notin.Uname)
+					if err != nil {
+						fmt.Printf("Failed to remove user. Group: %s status: %s \n", cfg.Localgroup, notin)
+					}
+				} else {
+					fmt.Printf("Ad Problems skipping remove: %s \n", notin.Uname)
 				}
 			}
 		}
