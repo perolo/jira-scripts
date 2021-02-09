@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"github.com/magiconair/properties"
 	"github.com/perolo/ad-utils"
+	"github.com/perolo/confluence-prop/client"
+	"github.com/perolo/confluence-scripts/utilities"
 	excelutils "github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -15,6 +18,7 @@ import (
 // or through Decode
 type Config struct {
 	Host            string `properties:"host"`
+	ConfHost        string `properties:"confhost"`
 	User            string `properties:"user"`
 	Pass            string `properties:"password"`
 	Simple          bool   `properties:"simple"`
@@ -25,6 +29,10 @@ type Config struct {
 	AdGroup         string `properties:"adgroup"`
 	Localgroup      string `properties:"localgroup"`
 	File            string `properties:"file"`
+	ConfUpload      bool   `properties:"confupload"`
+	ConfPage        string `properties:"confluencepage"`
+	ConfSpace       string `properties:"confluencespace"`
+	ConfAttName     string `properties:"conlfuenceattachment"`
 	Bindusername    string `properties:"bindusername"`
 	Bindpassword    string `properties:"bindpassword"`
 }
@@ -71,13 +79,32 @@ func initReport(cfg Config) {
 func endReport(cfg Config) {
 	if cfg.Report {
 		file := fmt.Sprintf(cfg.File, "-JIRA")
+		excelutils.SetColWidth("A", "A", 60)
 		excelutils.AutoFilterEnd()
 		excelutils.SaveAs(file)
+
+		if cfg.ConfUpload {
+
+			var config = client.ConfluenceConfig{}
+			var copt client.OperationOptions
+			config.Username = cfg.User
+			config.Password = cfg.Pass
+			config.URL = cfg.ConfHost
+			config.Debug = false
+			confluenceClient := client.Client(&config)
+
+			// Intentional override
+			copt.Title = "Using AD groups for JIRA/Confluence"
+			copt.SpaceKey = "STPIM"
+			_, name := filepath.Split(cfg.File)
+			cfg.ConfAttName = name
+			utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Sync AD group")
+		}
 	}
 }
 
 func JiraSyncAdGroup(propPtr string) {
-//	propPtr := flag.String("prop", "confluence.properties", "a string")
+	//	propPtr := flag.String("prop", "confluence.properties", "a string")
 	flag.Parse()
 	p := properties.MustLoadFile(propPtr, properties.ISO_8859_1)
 	var cfg Config
@@ -153,7 +180,7 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 			}
 		}
 		notInAD := ad_utils.Difference2(toolGroupMemberNames, adUnames)
-		fmt.Printf("notInAD: %s \n", notInAD)
+		fmt.Printf("notInAD(%v): %s \n", len(notInAD), notInAD)
 		if cfg.Report {
 			for _, nad := range notInAD {
 				var row = []string{"Tool user group member not found in AD", cfg.AdGroup, cfg.Localgroup, nad.Name, nad.Uname, nad.Mail, nad.Err, nad.DN}

@@ -21,8 +21,6 @@ type ReportConfig struct {
 	ConfHost         string `properties:"confhost"`
 	User             string `properties:"user"`
 	Pass             string `properties:"password"`
-	Groups           bool   `properties:"groups"`
-	Users            bool   `properties:"users"`
 	ProjectCategory  string `properties:"projectcategory"`
 	File             string `properties:"file"`
 	Simple           bool   `properties:"simple"`
@@ -72,6 +70,7 @@ func ProjectPermissionsReport(propPtr string) {
 		for _, category := range Categories {
 			cfg.ProjectCategory = category
 			cfg.File = fmt.Sprintf(reportBase, "-"+category)
+			fmt.Printf("Category: %s \n", category)
 			CreateProjectPermissionsReport(cfg)
 		}
 	}
@@ -191,7 +190,6 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	excelutils.NextCol()
 
 	excelutils.NextLine()
-	excelutils.ResetCol()
 
 	projects, _, err := jiraClient.Project.GetList()
 	excelutils.Check(err)
@@ -297,10 +295,10 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 		excelutils.WiteBoolCellnc(user.browsePermission)
 		excelutils.WiteBoolCellnc(user.active)
 		excelutils.NextLine()
-		excelutils.ResetCol()
 	}
 
 	excelutils.AutoFilterEnd()
+	excelutils.SetColWidth("A", "A", 60)
 
 	//	excelutils.SetColWidth("A", "A", 40)
 	//	excelutils.SetColWidth("B", "D", 30)
@@ -319,7 +317,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 		copt.Title = "Project Permissions Reports"
 		copt.SpaceKey = "AAAD"
 		_, name := filepath.Split(cfg.File)
-		utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File)
+		utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Project Permissions Report")
 
 	}
 }
