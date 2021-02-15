@@ -96,9 +96,10 @@ func endReport(cfg Config) {
 			// Intentional override
 			copt.Title = "Using AD groups for JIRA/Confluence"
 			copt.SpaceKey = "STPIM"
-			_, name := filepath.Split(cfg.File)
+			//cfg.File =
+			_, name := filepath.Split(file)
 			cfg.ConfAttName = name
-			utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Sync AD group")
+			utilities.AddAttachmentAndUpload(confluenceClient, copt, name, file, "Created by Sync AD group")
 		}
 	}
 }
