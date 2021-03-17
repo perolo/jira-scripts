@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"git.aa.st/perolo/confluence-utils/Utilities"
 	"github.com/magiconair/properties"
 	"github.com/perolo/confluence-prop/client"
 	"github.com/perolo/confluence-scripts/utilities"
@@ -197,19 +196,19 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 		if (cfg.ProjectCategory == "") || (project.ProjectCategory.Name == cfg.ProjectCategory) {
 
 			projPerm, _, err2 := jiraClient.Project.GetPermissionScheme(project.Key)
-			Utilities.Check(err2)
+			excelutils.Check(err2)
 
 			if projPerm.Name == "Permission Scheme - Standard - Closed Down" || projPerm.Name == "Permission Scheme - Standard - Closing Down" || projPerm.Name == "Archived Projects - Permission Scheme" {
-				fmt.Printf("   Skipping project due to Permission Scheme\n")
+				fmt.Printf("   Skipping project due to Permission Scheme\n") // mainly performance improvement, we know only admin can view
 			} else {
 
 				if cfg.RolesReport {
 					roles, _, err := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
-					Utilities.Check(err)
+					excelutils.Check(err)
 					for _, arole := range *roles {
 						//projRole, _, err := jiraClient.User.GetProjectRole(arole)
 						projRole, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
-						Utilities.Check(err)
+						excelutils.Check(err)
 						fmt.Printf("   Role: %s\n", arole.Name)
 
 						for _, actor := range projRole.Actors {
@@ -229,7 +228,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 
 										//members, _, _, _ := jiraClient.Group.GetUsersFromGroup(safe, &jira.GroupOptions{StartAt: start, MaxResults: max})
 										members, _, err := jiraClient.Group.GetWithOptionsWithContext(context.Background(), actor.Name, &jira.GroupSearchOptions{StartAt: start, MaxResults: max})
-										Utilities.Check(err)
+										excelutils.Check(err)
 										for _, member := range members {
 											addUser(project, projRole.Name, member.Name, member.DisplayName, actor.Name, projPerm.Name, false, false, false, false)
 										}
@@ -248,7 +247,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 								//addUser(project, projRole, member.Name, member.DisplayName, actor.Name, allProjectUsers, member.EmailAddress)
 							} else {
 								// QUE???
-								Utilities.Check(nil)
+								excelutils.Check(nil)
 							}
 						}
 					}
@@ -262,7 +261,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 						max := 50
 						for cont {
 							members, _, err := jiraClient.Group.SearchPermissionsWithOptionsWithContext(context.Background(), perm, &jira.PermissionSearchOptions{StartAt: start, MaxResults: max, ProjectKey: project.Key, Permissions: perm})
-							Utilities.Check(err)
+							excelutils.Check(err)
 							if members != nil {
 								for _, mem := range *members {
 									fmt.Printf("Permissions: %s User: %s\n", perm, mem.Name)
