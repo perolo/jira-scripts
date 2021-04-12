@@ -95,10 +95,14 @@ func endReport(cfg Config) {
 
 			// Intentional override
 			copt.Title = "Using AD groups for JIRA/Confluence"
-			copt.SpaceKey = "STPIM"			
+			copt.SpaceKey = "STPIM"
 			_, name := filepath.Split(file)
 			cfg.ConfAttName = name
-			utilities.AddAttachmentAndUpload(confluenceClient, copt, name, file, "Created by Sync AD group")
+			err := utilities.AddAttachmentAndUpload(confluenceClient, copt, name, file, "Created by Sync AD group")
+			if err != nil {
+				panic(err)
+			}
+
 		}
 	}
 }
@@ -113,7 +117,7 @@ func JiraSyncAdGroup(propPtr string) {
 	}
 	toolClient := toollogin(cfg)
 	initReport(cfg)
-	ad_utils.InitAD(cfg.Bindusername, cfg.Bindpassword)
+	adutils.InitAD(cfg.Bindusername, cfg.Bindpassword)
 	if cfg.Simple {
 
 		SyncGroupInTool(cfg, toolClient)
@@ -121,11 +125,12 @@ func JiraSyncAdGroup(propPtr string) {
 		for _, syn := range GroupSyncs {
 			cfg.AdGroup = syn.AdGroup
 			cfg.Localgroup = syn.LocalGroup
+			cfg.AddOperation = syn.DoAdd
 			SyncGroupInTool(cfg, toolClient)
 		}
 	}
 	endReport(cfg)
-	ad_utils.CloseAD()
+	adutils.CloseAD()
 }
 
 func toollogin(cfg Config) *jira.Client {
@@ -142,14 +147,14 @@ func toollogin(cfg Config) *jira.Client {
 }
 
 func SyncGroupInTool(cfg Config, client *jira.Client) {
-	var toolGroupMemberNames map[string]ad_utils.ADUser
+	var toolGroupMemberNames map[string]adutils.ADUser
 	fmt.Printf("\n")
 	fmt.Printf("SyncGroup AdGroup: %s LocalGroup: %s \n", cfg.AdGroup, cfg.Localgroup)
 	fmt.Printf("\n")
-	var adUnames []ad_utils.ADUser
+	var adUnames []adutils.ADUser
 	if cfg.AdGroup != "" {
-		adUnames, _ = ad_utils.GetUnamesInGroup(cfg.AdGroup)
-		fmt.Printf("adUnames(%v): %s \n", len(adUnames), adUnames)
+		adUnames, _ = adutils.GetUnamesInGroup(cfg.AdGroup)
+		fmt.Printf("adUnames(%v)\n", len(adUnames))
 	}
 	if cfg.Report {
 		if !cfg.Limited {
@@ -171,29 +176,56 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 		}
 	}
 	if cfg.Localgroup != "" && cfg.AdGroup != "" {
-		notInTool := ad_utils.Difference(adUnames, toolGroupMemberNames)
-		fmt.Printf("Not In Tool(%v): %s \n", len(notInTool), notInTool)
+		notInTool := adutils.Difference(adUnames, toolGroupMemberNames)
+		fmt.Printf("Not In Tool(%v)\n", len(notInTool))
 		if cfg.Report {
 			for _, nji := range notInTool {
 				var row = []string{"AD group users not found in Tool user group", cfg.AdGroup, cfg.Localgroup, nji.Name, nji.Uname, nji.Mail, nji.Err, nji.DN}
 				excelutils.WriteColumnsln(row)
 			}
 		}
-		notInAD := ad_utils.Difference2(toolGroupMemberNames, adUnames)
-		fmt.Printf("notInAD(%v): %s \n", len(notInAD), notInAD)
+		notInAD := adutils.Difference2(toolGroupMemberNames, adUnames)
+		fmt.Printf("notInAD(%v)\n", len(notInAD))
 		if cfg.Report {
 			for _, nad := range notInAD {
-				var row = []string{"Tool user group member not found in AD", cfg.AdGroup, cfg.Localgroup, nad.Name, nad.Uname, nad.Mail, nad.Err, nad.DN}
+				if nad.DN == "" {
+					dn, err := adutils.GetActiveUserDN(nad.Uname)
+					if err == nil {
+						nad.DN = dn.DN
+						nad.Mail = dn.Mail
+					} else {
+						udn, err := adutils.GetAllUserDN(nad.Uname)
+						if err == nil {
+							nad.DN = udn.DN
+							nad.Mail = udn.Mail
+							nad.Err = "Deactivated"
+						} else {
+							edn, err := adutils.GetAllEmailDN(nad.Mail)
+							if err == nil {
+								nad.DN = edn[0].DN
+								nad.Mail = edn[0].Mail
+								nad.Err = edn[0].Err
+								for _, ldn := range edn {
+									var row2 = []string{"Tool user group member not found in AD group (multiple?)", cfg.AdGroup, cfg.Localgroup, nad.Name, nad.Uname, ldn.Mail, ldn.Err, ldn.DN}
+									excelutils.WriteColumnsln(row2)
+								}
+							} else {
+								nad.Err = err.Error()
+							}
+						}
+					}
+				}
+				var row = []string{"Tool user group member not found in AD group", cfg.AdGroup, cfg.Localgroup, nad.Name, nad.Uname, nad.Mail, nad.Err, nad.DN}
 				excelutils.WriteColumnsln(row)
 			}
 		}
 		if cfg.AddOperation {
 			for _, notin := range notInTool {
 				if notin.Err == "" {
-					fmt.Printf("Add user. Group: %s status: %s \n", cfg.Localgroup, notin)
+					fmt.Printf("Add user. Group: %s status: %s \n", cfg.Localgroup, notin.Uname)
 					_, _, err := client.Group.Add(cfg.Localgroup, notin.Uname)
 					if err != nil {
-						fmt.Printf("Failed to add user. Group: %s status: %s \n", cfg.Localgroup, notin)
+						fmt.Printf("Failed to add user. Group: %s status: %s \n", cfg.Localgroup, notin.Uname)
 					}
 				} else {
 					fmt.Printf("Ad Problems skipping add: %s \n", notin.Uname)
@@ -204,10 +236,10 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 		if cfg.RemoveOperation {
 			for _, notin := range notInAD {
 				if notin.Err == "" {
-					fmt.Printf("Remove user. Group: %s status: %s \n", cfg.Localgroup, notin)
+					fmt.Printf("Remove user. Group: %s status: %s \n", cfg.Localgroup, notin.Uname)
 					_, err := client.Group.Remove(cfg.Localgroup, notin.Uname)
 					if err != nil {
-						fmt.Printf("Failed to remove user. Group: %s status: %s \n", cfg.Localgroup, notin)
+						fmt.Printf("Failed to remove user. Group: %s status: %s \n", cfg.Localgroup, notin.Uname)
 					}
 				} else {
 					fmt.Printf("Ad Problems skipping remove: %s \n", notin.Uname)
@@ -217,8 +249,8 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 	}
 }
 
-func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]ad_utils.ADUser {
-	groupMemberNames := make(map[string]ad_utils.ADUser)
+func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]adutils.ADUser {
+	groupMemberNames := make(map[string]adutils.ADUser)
 	cont := true
 	start := 0
 	max := 50
@@ -229,7 +261,7 @@ func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]
 		}
 		for _, member := range groupMembers {
 			if _, ok := groupMemberNames[member.Name]; !ok {
-				var newUser ad_utils.ADUser
+				var newUser adutils.ADUser
 				newUser.Uname = member.Name
 				newUser.Name = member.DisplayName
 				newUser.Mail = member.EmailAddress

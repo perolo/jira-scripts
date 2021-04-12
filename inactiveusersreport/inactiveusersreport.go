@@ -246,7 +246,9 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 		copt.SpaceKey = "AAAD"
 
 		_, name := filepath.Split(cfg.File)
-		utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Inactive Users Report")
-
+		err = utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Inactive Users Report")
+		if err!= nil {
+			panic(err)
+		}
 	}
 }

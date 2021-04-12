@@ -316,7 +316,9 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 		copt.Title = "Project Permissions Reports"
 		copt.SpaceKey = "AAAD"
 		_, name := filepath.Split(cfg.File)
-		utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Project Permissions Report")
-
+		err = utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Project Permissions Report")
+		if err!= nil {
+			panic(err)
+		}
 	}
 }
