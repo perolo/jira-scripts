@@ -10,6 +10,7 @@ import (
 	"github.com/perolo/confluence-scripts/utilities"
 	excelutils "github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
+	"github.com/perolo/jira-scripts/projectpermissionsreport"
 	"log"
 	"path/filepath"
 	"strings"
@@ -56,8 +57,22 @@ func InactiveUserReport(propPtr string) {
 	if err := p.Decode(&cfg); err != nil {
 		log.Fatal(err)
 	}
-	cfg.File = fmt.Sprintf(cfg.File, "-"+"Inactive Users"+"-"+cfg.ProjectCategory)
-	CreateInactiveUsersReport(cfg)
+
+	if cfg.Simple {
+		cfg.File = fmt.Sprintf(cfg.File, "-"+"Inactive Users"+"-"+cfg.ProjectCategory)
+		CreateInactiveUsersReport(cfg)
+	} else {
+		reportBase := cfg.File
+		for _, category := range projectpermissionsreport.Categories {
+			cfg.ProjectCategory = category
+//			cfg.File = fmt.Sprintf(reportBase, "-"+category)
+			cfg.File = fmt.Sprintf(reportBase, "-"+"Inactive Users"+"-"+cfg.ProjectCategory)
+			fmt.Printf("Category: %s \n", cfg.ProjectCategory)
+			CreateInactiveUsersReport(cfg)
+		}
+	}
+
+
 }
 
 func addUser(name string, dispName string, projetcname string, active bool) {

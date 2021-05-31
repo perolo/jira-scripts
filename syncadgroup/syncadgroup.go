@@ -11,6 +11,7 @@ import (
 	"github.com/perolo/jira-client"
 	"log"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -58,12 +59,14 @@ func initReport(cfg Config) {
 		excelutils.SetCellFontHeader2()
 		excelutils.WiteCellln("Group Mapping")
 		if cfg.Simple {
-			excelutils.WriteColumnsHeaderln([]string{"AD Group", "Local group"})
-			excelutils.WriteColumnsln([]string{cfg.AdGroup, cfg.Localgroup})
+			excelutils.WriteColumnsHeaderln([]string{"AD Group", "Local group", "Add", "Remove"})
+			excelutils.WriteColumnsln([]string{cfg.AdGroup, cfg.Localgroup, strconv.FormatBool(cfg.AddOperation), strconv.FormatBool(cfg.RemoveOperation)})
 		} else {
-			excelutils.WriteColumnsHeaderln([]string{"AD Group", "Local group"})
+			excelutils.WriteColumnsHeaderln([]string{"AD Group", "Local group", "Add", "Remove"})
 			for _, syn := range GroupSyncs {
-				excelutils.WriteColumnsln([]string{syn.AdGroup, syn.LocalGroup})
+				if syn.InJira {
+					excelutils.WriteColumnsln([]string{syn.AdGroup, syn.LocalGroup, excelutils.BoolToEmoji(syn.DoAdd), excelutils.BoolToEmoji(syn.DoRemove)})
+				}
 			}
 		}
 		excelutils.WiteCellln("")
@@ -76,7 +79,7 @@ func initReport(cfg Config) {
 	}
 }
 
-func endReport(cfg Config) {
+func endReport(cfg Config) error {
 	if cfg.Report {
 		file := fmt.Sprintf(cfg.File, "-JIRA")
 		excelutils.SetColWidth("A", "A", 60)
@@ -95,16 +98,15 @@ func endReport(cfg Config) {
 
 			// Intentional override
 			copt.Title = "Using AD groups for JIRA/Confluence"
-			copt.SpaceKey = "STPIM"
+			copt.SpaceKey = "AAAD"
 			_, name := filepath.Split(file)
 			cfg.ConfAttName = name
-			err := utilities.AddAttachmentAndUpload(confluenceClient, copt, name, file, "Created by Sync AD group")
-			if err != nil {
-				panic(err)
-			}
+			return utilities.AddAttachmentAndUpload(confluenceClient, copt, name, file, "Created by Sync AD group")
 
 		}
+
 	}
+	return nil
 }
 
 func JiraSyncAdGroup(propPtr string) {
@@ -119,14 +121,19 @@ func JiraSyncAdGroup(propPtr string) {
 	initReport(cfg)
 	adutils.InitAD(cfg.Bindusername, cfg.Bindpassword)
 	if cfg.Simple {
-
 		SyncGroupInTool(cfg, toolClient)
 	} else {
 		for _, syn := range GroupSyncs {
-			cfg.AdGroup = syn.AdGroup
-			cfg.Localgroup = syn.LocalGroup
-			cfg.AddOperation = syn.DoAdd
-			SyncGroupInTool(cfg, toolClient)
+			if !syn.InJira && !syn.InConfluence {
+				log.Fatal("Error in setup")
+			}
+			if syn.InJira {
+				cfg.AdGroup = syn.AdGroup
+				cfg.Localgroup = syn.LocalGroup
+				cfg.AddOperation = syn.DoAdd
+				cfg.RemoveOperation = syn.DoRemove
+				SyncGroupInTool(cfg, toolClient)
+			}
 		}
 	}
 	endReport(cfg)
@@ -177,7 +184,16 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 	}
 	if cfg.Localgroup != "" && cfg.AdGroup != "" {
 		notInTool := adutils.Difference(adUnames, toolGroupMemberNames)
-		fmt.Printf("Not In Tool(%v)\n", len(notInTool))
+		if len(notInTool) == 0 {
+			fmt.Printf("Not In Tool(%v)\n", len(notInTool))
+		} else {
+			fmt.Printf("Not In Tool(%v) ", len(notInTool))
+			for _, nit := range notInTool {
+				fmt.Printf("%s, ", nit.Uname)
+			}
+			fmt.Printf("\n")
+		}
+
 		if cfg.Report {
 			for _, nji := range notInTool {
 				var row = []string{"AD group users not found in Tool user group", cfg.AdGroup, cfg.Localgroup, nji.Name, nji.Uname, nji.Mail, nji.Err, nji.DN}
@@ -185,7 +201,15 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 			}
 		}
 		notInAD := adutils.Difference2(toolGroupMemberNames, adUnames)
-		fmt.Printf("notInAD(%v)\n", len(notInAD))
+		if len(notInAD) == 0 {
+			fmt.Printf("notInAD(%v)\n", len(notInAD))
+		} else {
+			fmt.Printf("notInAD(%v) ", len(notInAD))
+			for _, nit := range notInAD {
+				fmt.Printf("%s, ", nit.Uname)
+			}
+			fmt.Printf("\n")
+		}
 		if cfg.Report {
 			for _, nad := range notInAD {
 				if nad.DN == "" {
