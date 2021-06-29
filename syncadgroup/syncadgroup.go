@@ -58,11 +58,10 @@ func initReport(cfg Config) {
 
 		excelutils.SetCellFontHeader2()
 		excelutils.WiteCellln("Group Mapping")
+		excelutils.WriteColumnsHeaderln([]string{"AD Group", "Local group", "Add", "Remove", "Ad Count", "Local Count"})
 		if cfg.Simple {
-			excelutils.WriteColumnsHeaderln([]string{"AD Group", "Local group", "Add", "Remove"})
 			excelutils.WriteColumnsln([]string{cfg.AdGroup, cfg.Localgroup, strconv.FormatBool(cfg.AddOperation), strconv.FormatBool(cfg.RemoveOperation)})
 		} else {
-			excelutils.WriteColumnsHeaderln([]string{"AD Group", "Local group", "Add", "Remove"})
 			for _, syn := range GroupSyncs {
 				if syn.InJira {
 					excelutils.WriteColumnsln([]string{syn.AdGroup, syn.LocalGroup, excelutils.BoolToEmoji(syn.DoAdd), excelutils.BoolToEmoji(syn.DoRemove)})
@@ -120,10 +119,13 @@ func JiraSyncAdGroup(propPtr string) {
 	toolClient := toollogin(cfg)
 	initReport(cfg)
 	adutils.InitAD(cfg.Bindusername, cfg.Bindpassword)
+	x := 15
 	if cfg.Simple {
 		SyncGroupInTool(cfg, toolClient)
 	} else {
 		for _, syn := range GroupSyncs {
+			syn.AdCount = 0
+			syn.GroupCount = 0
 			if !syn.InJira && !syn.InConfluence {
 				log.Fatal("Error in setup")
 			}
@@ -132,11 +134,17 @@ func JiraSyncAdGroup(propPtr string) {
 				cfg.Localgroup = syn.LocalGroup
 				cfg.AddOperation = syn.DoAdd
 				cfg.RemoveOperation = syn.DoRemove
-				SyncGroupInTool(cfg, toolClient)
-			}
+				syn.AdCount, syn.GroupCount = SyncGroupInTool(cfg, toolClient)
+			} // Dirty Solution - find a better?
+			excelutils.SetCell(fmt.Sprintf("%v", syn.AdCount), 5, x)
+			excelutils.SetCell(fmt.Sprintf("%v", syn.GroupCount), 6, x)
+			x = x + 1
 		}
 	}
-	endReport(cfg)
+	err := endReport(cfg)
+	if err != nil {
+		panic(err)
+	}
 	adutils.CloseAD()
 }
 
@@ -153,7 +161,7 @@ func toollogin(cfg Config) *jira.Client {
 	return jiraClient
 }
 
-func SyncGroupInTool(cfg Config, client *jira.Client) {
+func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount int) {
 	var toolGroupMemberNames map[string]adutils.ADUser
 	fmt.Printf("\n")
 	fmt.Printf("SyncGroup AdGroup: %s LocalGroup: %s \n", cfg.AdGroup, cfg.Localgroup)
@@ -170,6 +178,7 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 				excelutils.WriteColumnsln(row)
 			}
 		}
+		adcount = len(adUnames)
 	}
 	if cfg.Localgroup != "" {
 		toolGroupMemberNames = getUnamesInToolGroup(client, cfg.Localgroup)
@@ -181,6 +190,7 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 				}
 			}
 		}
+		localcount = len(toolGroupMemberNames)
 	}
 	if cfg.Localgroup != "" && cfg.AdGroup != "" {
 		notInTool := adutils.Difference(adUnames, toolGroupMemberNames)
@@ -217,11 +227,13 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 					if err == nil {
 						nad.DN = dn.DN
 						nad.Mail = dn.Mail
+						nad.Name = dn.Name
 					} else {
 						udn, err := adutils.GetAllUserDN(nad.Uname)
 						if err == nil {
 							nad.DN = udn.DN
 							nad.Mail = udn.Mail
+							nad.Name = udn.Name
 							nad.Err = "Deactivated"
 						} else {
 							edn, err := adutils.GetAllEmailDN(nad.Mail)
@@ -271,6 +283,7 @@ func SyncGroupInTool(cfg Config, client *jira.Client) {
 			}
 		}
 	}
+	return adcount, localcount
 }
 
 func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]adutils.ADUser {
