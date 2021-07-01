@@ -36,6 +36,7 @@ type Config struct {
 	ConfAttName     string `properties:"conlfuenceattachment"`
 	Bindusername    string `properties:"bindusername"`
 	Bindpassword    string `properties:"bindpassword"`
+	BaseDN           string `properties:"basedn"`
 }
 
 func initReport(cfg Config) {
@@ -81,7 +82,12 @@ func initReport(cfg Config) {
 func endReport(cfg Config) error {
 	if cfg.Report {
 		file := fmt.Sprintf(cfg.File, "-JIRA")
-		excelutils.SetColWidth("A", "A", 60)
+		excelutils.SetColWidth("A", "A", 50)
+		excelutils.SetColWidth("B", "B", 40)
+		excelutils.SetColWidth("C", "C", 30)
+		excelutils.SetColWidth("D", "D", 30)
+		excelutils.SetColWidth("E", "E", 30)
+		excelutils.SetColWidth("F", "H", 40)
 		excelutils.AutoFilterEnd()
 		excelutils.SaveAs(file)
 
@@ -135,10 +141,10 @@ func JiraSyncAdGroup(propPtr string) {
 				cfg.AddOperation = syn.DoAdd
 				cfg.RemoveOperation = syn.DoRemove
 				syn.AdCount, syn.GroupCount = SyncGroupInTool(cfg, toolClient)
+				excelutils.SetCell(fmt.Sprintf("%v", syn.AdCount), 5, x)
+				excelutils.SetCell(fmt.Sprintf("%v", syn.GroupCount), 6, x)
+				x = x + 1
 			} // Dirty Solution - find a better?
-			excelutils.SetCell(fmt.Sprintf("%v", syn.AdCount), 5, x)
-			excelutils.SetCell(fmt.Sprintf("%v", syn.GroupCount), 6, x)
-			x = x + 1
 		}
 	}
 	err := endReport(cfg)
@@ -168,7 +174,7 @@ func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount i
 	fmt.Printf("\n")
 	var adUnames []adutils.ADUser
 	if cfg.AdGroup != "" {
-		adUnames, _ = adutils.GetUnamesInGroup(cfg.AdGroup)
+		adUnames, _ = adutils.GetUnamesInGroup(cfg.AdGroup, cfg.BaseDN)
 		fmt.Printf("adUnames(%v)\n", len(adUnames))
 	}
 	if cfg.Report {
@@ -223,20 +229,20 @@ func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount i
 		if cfg.Report {
 			for _, nad := range notInAD {
 				if nad.DN == "" {
-					dn, err := adutils.GetActiveUserDN(nad.Uname)
+					dn, err := adutils.GetActiveUserDN(nad.Uname, cfg.BaseDN)
 					if err == nil {
 						nad.DN = dn.DN
 						nad.Mail = dn.Mail
 						nad.Name = dn.Name
 					} else {
-						udn, err := adutils.GetAllUserDN(nad.Uname)
+						udn, err := adutils.GetAllUserDN(nad.Uname, cfg.BaseDN)
 						if err == nil {
 							nad.DN = udn.DN
 							nad.Mail = udn.Mail
 							nad.Name = udn.Name
 							nad.Err = "Deactivated"
 						} else {
-							edn, err := adutils.GetAllEmailDN(nad.Mail)
+							edn, err := adutils.GetAllEmailDN(nad.Mail, cfg.BaseDN)
 							if err == nil {
 								nad.DN = edn[0].DN
 								nad.Mail = edn[0].Mail
