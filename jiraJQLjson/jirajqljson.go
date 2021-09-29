@@ -3,7 +3,7 @@ package jirajqljson
 import (
 	"encoding/json"
 	"fmt"
-	"git.aa.st/perolo/confluence-utils/Utilities"
+	"git.aa.st/perolo/confluence-utils/Utilities/htmlutils"
 	"github.com/atotto/clipboard"
 	"github.com/magiconair/properties"
 	"github.com/perolo/jira-client"
@@ -86,11 +86,11 @@ func JiraJQLjson(propPtr string) {
 
 	//	f, err := ioutil.TempFile(os.TempDir(), "data*.json")
 	f, err := os.Create("C://temp/data.json")
-	Utilities.Check(err)
+	htmlutils.Check(err)
 	_, err = f.Write(buf)
-	Utilities.Check(err)
+	htmlutils.Check(err)
 	err = f.Close()
-	Utilities.Check(err)
+	htmlutils.Check(err)
 	fmt.Printf("File created OK\n")
 
 }

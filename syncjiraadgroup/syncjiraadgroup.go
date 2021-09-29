@@ -1,4 +1,4 @@
-package syncadgroup
+package syncjiraadgroup
 
 import (
 	"flag"
@@ -9,6 +9,9 @@ import (
 	"github.com/perolo/confluence-scripts/utilities"
 	excelutils "github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
+	//	"github.com/perolo/jira-scripts/JiraUtils"
+
+	//	"github.com/perolo/jira-scripts/JiraUtils"
 	"log"
 	"path/filepath"
 	"strconv"
@@ -16,7 +19,6 @@ import (
 	"time"
 )
 
-// or through Decode
 type Config struct {
 	Host            string `properties:"host"`
 	ConfHost        string `properties:"confhost"`
@@ -25,18 +27,20 @@ type Config struct {
 	Simple          bool   `properties:"simple"`
 	AddOperation    bool   `properties:"add"`
 	RemoveOperation bool   `properties:"remove"`
+	AutoDisable     bool   `properties:"autodisable"`
 	Report          bool   `properties:"report"`
 	Limited         bool   `properties:"limited"`
 	AdGroup         string `properties:"adgroup"`
 	Localgroup      string `properties:"localgroup"`
 	File            string `properties:"file"`
+//	Reset            bool `properties:"reset"`
 	ConfUpload      bool   `properties:"confupload"`
 	ConfPage        string `properties:"confluencepage"`
 	ConfSpace       string `properties:"confluencespace"`
 	ConfAttName     string `properties:"conlfuenceattachment"`
 	Bindusername    string `properties:"bindusername"`
 	Bindpassword    string `properties:"bindpassword"`
-	BaseDN           string `properties:"basedn"`
+	BaseDN          string `properties:"basedn"`
 }
 
 func initReport(cfg Config) {
@@ -122,6 +126,7 @@ func JiraSyncAdGroup(propPtr string) {
 	if err := p.Decode(&cfg); err != nil {
 		log.Fatal(err)
 	}
+
 	toolClient := toollogin(cfg)
 	initReport(cfg)
 	adutils.InitAD(cfg.Bindusername, cfg.Bindpassword)
@@ -130,22 +135,23 @@ func JiraSyncAdGroup(propPtr string) {
 		SyncGroupInTool(cfg, toolClient)
 	} else {
 		for _, syn := range GroupSyncs {
-			syn.AdCount = 0
-			syn.GroupCount = 0
-			if !syn.InJira && !syn.InConfluence {
-				log.Fatal("Error in setup")
+				adCount := 0
+				groupCount := 0
+				if !syn.InJira && !syn.InConfluence {
+					log.Fatal("Error in setup")
+				}
+				if syn.InJira {
+					cfg.AdGroup = syn.AdGroup
+					cfg.Localgroup = syn.LocalGroup
+					cfg.AddOperation = syn.DoAdd
+					cfg.RemoveOperation = syn.DoRemove
+					cfg.AutoDisable = syn.AutoDisable
+					adCount, groupCount = SyncGroupInTool(cfg, toolClient)
+					excelutils.SetCell(fmt.Sprintf("%v", adCount), 5, x)
+					excelutils.SetCell(fmt.Sprintf("%v", groupCount), 6, x)
+					x = x + 1
+				} // Dirty Solution - find a better?
 			}
-			if syn.InJira {
-				cfg.AdGroup = syn.AdGroup
-				cfg.Localgroup = syn.LocalGroup
-				cfg.AddOperation = syn.DoAdd
-				cfg.RemoveOperation = syn.DoRemove
-				syn.AdCount, syn.GroupCount = SyncGroupInTool(cfg, toolClient)
-				excelutils.SetCell(fmt.Sprintf("%v", syn.AdCount), 5, x)
-				excelutils.SetCell(fmt.Sprintf("%v", syn.GroupCount), 6, x)
-				x = x + 1
-			} // Dirty Solution - find a better?
-		}
 	}
 	err := endReport(cfg)
 	if err != nil {
@@ -176,6 +182,9 @@ func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount i
 	if cfg.AdGroup != "" {
 		adUnames, _ = adutils.GetUnamesInGroup(cfg.AdGroup, cfg.BaseDN)
 		fmt.Printf("adUnames(%v)\n", len(adUnames))
+		if len(adUnames) == 0 {
+			fmt.Printf("Warning empty AD group! adUnames(%v)\n", len(adUnames))
+		}
 	}
 	if cfg.Report {
 		if !cfg.Limited {
@@ -241,6 +250,9 @@ func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount i
 							nad.Mail = udn.Mail
 							nad.Name = udn.Name
 							nad.Err = "Deactivated"
+							if cfg.AutoDisable == true {
+								TryDeactivateUserJira(cfg.BaseDN, client, nad.Uname)
+							}
 						} else {
 							edn, err := adutils.GetAllEmailDN(nad.Mail, cfg.BaseDN)
 							if err == nil {
@@ -298,7 +310,7 @@ func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]
 	start := 0
 	max := 50
 	for cont {
-		groupMembers, _, err := theClient.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max})
+		groupMembers, _, err := theClient.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max,  IncludeInactiveUsers: false})
 		if err != nil {
 			panic(err)
 		}
@@ -318,4 +330,57 @@ func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]
 		}
 	}
 	return groupMemberNames
+}
+
+func DeactivateUser(jiraClient *jira.Client,  user string) (*jira.UpdateResponse, *jira.Response, error){
+	i := make(map[string]interface{})
+	i["active"] = false
+
+	uresp, resp, err := jiraClient.User.Update(user, i)
+
+	if (err!=nil) {
+		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
+	} else {
+		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
+	}
+	return uresp, resp, err
+}
+
+var deactCounter = 0
+
+func TryDeactivateUserJira(basedn string,  client *jira.Client, deactuser string) {
+	deactUser, _, _ := client.User.Get(deactuser)
+	if deactUser.Active == true {
+		uresp, resp2, err := DeactivateUser(client, deactuser)
+		deactCounter++
+		if deactCounter > 10 {
+			_, errn := adutils.GetAllUserDN("perolo", basedn)
+			if errn != nil {
+				fmt.Printf("Error: finding %s \n", "perolo")
+				panic(errn)
+			}
+			deactCounter = 0
+		}
+
+		if err != nil {
+			fmt.Printf("Error: %s\n", err.Error())
+		} else {
+			fmt.Printf("uresp.Name: %s\n", uresp.Name)
+			fmt.Printf("uresp.Name: %v\n", resp2.StatusCode)
+			deactUser2, resp2, err := client.User.Get(deactuser)
+			if err == nil {
+				if deactUser2.Active == false {
+					fmt.Printf("deactUser: %s\n", deactUser2.Name)
+					fmt.Printf("deactUser Active: %t\n", deactUser2.Active)
+					fmt.Printf("respcode: %v\n", resp2.StatusCode)
+				} else {
+					fmt.Printf("Error: %s\n", err.Error())
+					panic(err)
+				}
+			} else {
+				fmt.Printf("Error: %s\n", err.Error())
+				panic(err)
+			}
+		}
+	}
 }

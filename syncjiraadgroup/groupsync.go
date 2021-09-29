@@ -1,4 +1,4 @@
-package syncadgroup
+package syncjiraadgroup
 
 import "git.aa.st/perolo/jira-utils/shared"
 
