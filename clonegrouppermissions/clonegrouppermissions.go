@@ -5,8 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/magiconair/properties"
-	excelutils "github.com/perolo/excel-utils"
-	//	excelutils "github.com/perolo/excel-utils"
+	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
 	"log"
 	"strings"
@@ -48,31 +47,21 @@ func main() {
 	excelutils.Check(err)
 	for _, project := range *projects {
 
-		if (strings.Contains(project.ProjectCategory.Name, "GTT")) {
+		if strings.Contains(project.ProjectCategory.Name, "GTT") {
 
 			fmt.Printf("Project: %s : %s\n", project.Key, project.Name)
 
 			roles, _, err := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
 			excelutils.Check(err)
 			for _, arole := range *roles {
-				//projRole, _, err := jiraClient.User.GetProjectRole(arole)
 				projRole, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
 				excelutils.Check(err)
 				//			fmt.Printf("   Role: %s\n", arole.Name)
 
 				for _, actor := range projRole.Actors {
 
-					//				fmt.Printf("    Actor: %s\n", actor.Name)
-					if actor.Name == "c-johlan" {
-						fmt.Printf("   What?: %v\n", actor.Name)
-					}
 					if actor.Type == "atlassian-group-role-actor" {
 						fmt.Printf("   %s atlassian-group-role-actor: %s\n", arole.Name, actor.Name)
-
-						if (actor.Name == "st-all") {
-//							jiraClient.Role.AddActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID, "gtt-all")
-							fmt.Printf("   %s atlassian-group-role-actor: %s\n", arole.Name, actor.Name)
-						}
 
 					} else if actor.Type == "atlassian-user-role-actor" {
 

@@ -1,9 +1,16 @@
-package JiraUtils
+package jirautils
 
 import (
 	"fmt"
+	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
 )
+
+func Check(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
 
 func AddComment(jiraClient *jira.Client, issue jira.Issue, comment string ) error {
 	i := make(map[string]interface{})
@@ -19,7 +26,7 @@ func AddComment(jiraClient *jira.Client, issue jira.Issue, comment string ) erro
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if (err!=nil) {
+	if err!=nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -69,7 +76,7 @@ func AddLabel(jiraClient *jira.Client, issue jira.Issue, label string ) error {
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if (err!=nil) {
+	if err!=nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -92,7 +99,7 @@ func SetSummary(jiraClient *jira.Client, issue jira.Issue, newSummary string) er
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if (err!=nil) {
+	if err!=nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -109,7 +116,7 @@ func RemoveComponent(jiraClient *jira.Client, issue jira.Issue, emeta *jira.Edit
 	v, ok := comp.(map[string]interface{})
 	if !ok {
 		// Can't assert, handle error.
-		return  fmt.Errorf("Component: Illegal name")
+		return  fmt.Errorf("component: Illegal name")
 	}
 	d := v["allowedValues"].([]interface{})
 	for _, s := range d {
@@ -133,7 +140,7 @@ func RemoveComponent(jiraClient *jira.Client, issue jira.Issue, emeta *jira.Edit
 	*/
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if (err!=nil) {
+	if err!=nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -141,7 +148,6 @@ func RemoveComponent(jiraClient *jira.Client, issue jira.Issue, emeta *jira.Edit
 	return err
 }
 
-//"customfield_10515" = User
 func SetUser(jiraClient *jira.Client, issue jira.Issue, newUser string) error{
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
@@ -151,12 +157,12 @@ func SetUser(jiraClient *jira.Client, issue jira.Issue, newUser string) error{
 	afield["set"] = bfield
 	var vfield []map[string]interface{}
 
-	fields["customfield_10515"] = append(vfield, afield)
+	fields["customfield_10515"] = append(vfield, afield) //User
 	i["update"] = fields
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if (err!=nil) {
+	if err!=nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -164,7 +170,6 @@ func SetUser(jiraClient *jira.Client, issue jira.Issue, newUser string) error{
 	return err
 }
 
-//"customfield_10515" = User
 func SetNewName(jiraClient *jira.Client, issue jira.Issue, newUser string) error{
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
@@ -172,19 +177,19 @@ func SetNewName(jiraClient *jira.Client, issue jira.Issue, newUser string) error
 	afield["set"] = newUser
 	var vfield []map[string]interface{}
 
-	fields["customfield_10712"] = append(vfield, afield)
+	fields["customfield_10712"] = append(vfield, afield) // New Name
 	i["update"] = fields
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if (err!=nil) {
+	if err!=nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
 	}
 	return err
 }
-//"customfield_16410" = Email
+
 func SetNewEmail(jiraClient *jira.Client, issue jira.Issue, email string) error{
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
@@ -192,17 +197,25 @@ func SetNewEmail(jiraClient *jira.Client, issue jira.Issue, email string) error{
 	afield["set"] = email
 	var vfield []map[string]interface{}
 
-	fields["customfield_16410"] = append(vfield, afield)
+	fields["customfield_16410"] = append(vfield, afield) //New Email
 	i["update"] = fields
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if (err!=nil) {
+	if err!=nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
 	}
 	return err
+}
+
+func GetPermissionScheme(jiraClient *jira.Client, project jira.ProjectType) (string, bool) {
+	// Permission Scheme
+	projPerm, _, err2 := jiraClient.Project.GetPermissionScheme(project.Key)
+	excelutils.Check(err2)
+	closedDown := projPerm.Name == "Permission Scheme - Standard - Closed Down" || projPerm.Name == "Archived Projects - Permission Scheme"
+	return projPerm.Name, closedDown
 }
 
 

@@ -7,11 +7,8 @@ import (
 	"github.com/perolo/ad-utils"
 	"github.com/perolo/confluence-prop/client"
 	"github.com/perolo/confluence-scripts/utilities"
-	excelutils "github.com/perolo/excel-utils"
+	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
-	//	"github.com/perolo/jira-scripts/JiraUtils"
-
-	//	"github.com/perolo/jira-scripts/JiraUtils"
 	"log"
 	"path/filepath"
 	"strconv"
@@ -86,12 +83,8 @@ func initReport(cfg Config) {
 func endReport(cfg Config) error {
 	if cfg.Report {
 		file := fmt.Sprintf(cfg.File, "-JIRA")
+		excelutils.SetAutoColWidth()
 		excelutils.SetColWidth("A", "A", 50)
-		excelutils.SetColWidth("B", "B", 40)
-		excelutils.SetColWidth("C", "C", 30)
-		excelutils.SetColWidth("D", "D", 30)
-		excelutils.SetColWidth("E", "E", 30)
-		excelutils.SetColWidth("F", "H", 40)
 		excelutils.AutoFilterEnd()
 		excelutils.SaveAs(file)
 
@@ -176,7 +169,7 @@ func toollogin(cfg Config) *jira.Client {
 func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount int) {
 	var toolGroupMemberNames map[string]adutils.ADUser
 	fmt.Printf("\n")
-	fmt.Printf("SyncGroup AdGroup: %s LocalGroup: %s \n", cfg.AdGroup, cfg.Localgroup)
+	fmt.Printf("SyncGroup Jira AdGroup: %s LocalGroup: %s \n", cfg.AdGroup, cfg.Localgroup)
 	fmt.Printf("\n")
 	var adUnames []adutils.ADUser
 	if cfg.AdGroup != "" {
@@ -184,6 +177,7 @@ func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount i
 		fmt.Printf("adUnames(%v)\n", len(adUnames))
 		if len(adUnames) == 0 {
 			fmt.Printf("Warning empty AD group! adUnames(%v)\n", len(adUnames))
+			panic(nil)
 		}
 	}
 	if cfg.Report {
@@ -338,7 +332,7 @@ func DeactivateUser(jiraClient *jira.Client,  user string) (*jira.UpdateResponse
 
 	uresp, resp, err := jiraClient.User.Update(user, i)
 
-	if (err!=nil) {
+	if err!=nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)

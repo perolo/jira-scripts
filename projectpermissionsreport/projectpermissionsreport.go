@@ -7,8 +7,9 @@ import (
 	"github.com/magiconair/properties"
 	"github.com/perolo/confluence-prop/client"
 	"github.com/perolo/confluence-scripts/utilities"
-	excelutils "github.com/perolo/excel-utils"
+	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
+	"github.com/perolo/jira-scripts/jirautils"
 	"log"
 	"path/filepath"
 	"strings"
@@ -195,10 +196,9 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	for _, project := range *projects {
 		if (cfg.ProjectCategory == "") || (project.ProjectCategory.Name == cfg.ProjectCategory) {
 
-			projPerm, _, err2 := jiraClient.Project.GetPermissionScheme(project.Key)
-			excelutils.Check(err2)
+			projPerm, closedDown := jirautils.GetPermissionScheme(jiraClient, project)
 
-			if projPerm.Name == "Permission Scheme - Standard - Closed Down" || projPerm.Name == "Permission Scheme - Standard - Closing Down" || projPerm.Name == "Archived Projects - Permission Scheme" {
+			if closedDown {
 				fmt.Printf("   Skipping project due to Permission Scheme\n") // mainly performance improvement, we know only admin can view
 			} else {
 
@@ -230,7 +230,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 										members, _, err := jiraClient.Group.GetWithOptionsWithContext(context.Background(), actor.Name, &jira.GroupSearchOptions{StartAt: start, MaxResults: max})
 										excelutils.Check(err)
 										for _, member := range members {
-											addUser(project, projRole.Name, member.Name, member.DisplayName, actor.Name, projPerm.Name, false, false, false, false)
+											addUser(project, projRole.Name, member.Name, member.DisplayName, actor.Name, projPerm, false, false, false, false)
 										}
 										if len(members) != max {
 											cont = false
@@ -239,11 +239,11 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 										}
 									}
 								} else {
-									addUser(project, projRole.Name, actor.Name, actor.DisplayName, "group", projPerm.Name, false, false, false, false)
+									addUser(project, projRole.Name, actor.Name, actor.DisplayName, "group", projPerm, false, false, false, false)
 								}
 							} else if actor.Type == "atlassian-user-role-actor" {
 
-								addUser(project, projRole.Name, actor.Name, actor.DisplayName, "user", projPerm.Name, false, false, false, false)
+								addUser(project, projRole.Name, actor.Name, actor.DisplayName, "user", projPerm, false, false, false, false)
 								//addUser(project, projRole, member.Name, member.DisplayName, actor.Name, allProjectUsers, member.EmailAddress)
 							} else {
 								// QUE???
@@ -266,7 +266,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 								for _, mem := range *members {
 									fmt.Printf("Permissions: %s User: %s\n", perm, mem.Name)
 
-									addUser(project, "PermSearch", mem.Name, mem.DisplayName, "user", projPerm.Name, perm == permissions[2], perm == permissions[1], perm == permissions[0], mem.Active)
+									addUser(project, "PermSearch", mem.Name, mem.DisplayName, "user", projPerm, perm == permissions[2], perm == permissions[1], perm == permissions[0], mem.Active)
 								}
 								if len(*members) != max {
 									cont = false
@@ -296,6 +296,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 		excelutils.NextLine()
 	}
 
+	excelutils.SetAutoColWidth()
 	excelutils.AutoFilterEnd()
 	excelutils.SetColWidth("A", "A", 60)
 

@@ -12,7 +12,6 @@ import (
 	"strings"
 )
 
-// or through Decode
 type Config struct {
 	Host string `properties:"host"`
 	User string `properties:"user"`

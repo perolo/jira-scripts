@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/magiconair/properties"
 	"github.com/perolo/jira-client"
+	"github.com/trivago/tgo/tcontainer"
 	"log"
 	"strings"
 	"time"
-	"github.com/trivago/tgo/tcontainer"
 )
 
 func main() {

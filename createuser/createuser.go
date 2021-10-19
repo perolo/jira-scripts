@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/magiconair/properties"
-	adutils "github.com/perolo/ad-utils"
+	"github.com/perolo/ad-utils"
 	"github.com/perolo/confluence-prop/client"
 	"github.com/perolo/jira-client"
 	"io"

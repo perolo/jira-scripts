@@ -4,12 +4,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"git.aa.st/perolo/confluence-utils/Utilities/htmlutils"
 	"github.com/magiconair/properties"
 	"github.com/perolo/confluence-prop/client"
 	"github.com/perolo/confluence-scripts/utilities"
-	excelutils "github.com/perolo/excel-utils"
+	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
+	"github.com/perolo/jira-scripts/jirautils"
 	"github.com/perolo/jira-scripts/projectpermissionsreport"
 	"log"
 	"path/filepath"
@@ -182,18 +182,17 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 
 		if project.ProjectCategory.Name == cfg.ProjectCategory {
 			fmt.Printf("Project name: %s Key: %s\n", project.Name, project.Key)
-			projPerm, _, err2 := jiraClient.Project.GetPermissionScheme(project.Key)
-			htmlutils.Check(err2)
+			_, closedDown := jirautils.GetPermissionScheme(jiraClient, project)
 
-			if projPerm.Name == "Permission Scheme - Standard - Closed Down" || projPerm.Name == "Permission Scheme - Standard - Closing Down" || projPerm.Name == "Archived Projects - Permission Scheme" {
+			if closedDown {
 				fmt.Printf("   Skipping project due to Permission Scheme\n")
 			} else {
 				roles, _, err := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
-				htmlutils.Check(err)
+				jirautils.Check(err)
 				for _, arole := range *roles {
 					//projRole, _, err := jiraClient.User.GetProjectRole(arole)
 					projRole, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
-					htmlutils.Check(err)
+					jirautils.Check(err)
 					fmt.Printf("   Role: %s\n", arole.Name)
 
 					for _, actor := range projRole.Actors {
@@ -218,7 +217,7 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 							//addUser(project, projRole, member.Name, member.DisplayName, actor.Name, allProjectUsers, member.EmailAddress)
 						} else {
 							// QUE???
-							htmlutils.Check(nil)
+							jirautils.Check(nil)
 						}
 					}
 				}
@@ -241,6 +240,7 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 		excelutils.NextLine()
 	}
 
+	excelutils.SetAutoColWidth()
 	excelutils.AutoFilterEnd()
 
 	excelutils.SetColWidth("A", "A", 60)
