@@ -24,6 +24,7 @@ type customField struct {
 	projPerm string
 	archivedProject bool
 	issueCount int
+	issueUpdateDate time.Time
 	projCount int
 	customField   jira.CustomFieldsType
 }
@@ -43,9 +44,10 @@ func CustomFieldReport(propPtr string) {
 		Space        string `properties:"space"`
 		File         string `properties:"file"`
 		Attachment   string `properties:"attachment"`
-		Bindusername string `properties:"bindusername"`
-		Bindpassword string `properties:"bindpassword"`
-		BaseDN           string `properties:"basedn"`
+		Archivedwf      string `properties:"archivedwf"`
+//		Bindusername string `properties:"bindusername"`
+//		Bindpassword string `properties:"bindpassword"`
+//		BaseDN           string `properties:"basedn"`
 	}
 
 	var cfg Config
@@ -78,13 +80,14 @@ func CustomFieldReport(propPtr string) {
 	cont := true
 	start := 0
 	max := 1
-	limit := 0
+	limit := 0 // Used for debugging - only get a subset
 	for cont {
 		projloop := 0
+		// Only searching 1 customfield at a time is a confirmed Jira bug  -
 		fields, _, err := jiraClient.Field.GetAllCustomFields(&jira.FieldOptions{StartAt:start, MaxResults:max })
 		jirautils.Check(err)
 		for _, field := range fields.Values {
-//			limit++
+			//limit++
 			fmt.Printf("CustomField: %s locked %t \n", field.Name, field.IsLocked)
 			var aField customField
 			aField.customField = field
@@ -92,7 +95,12 @@ func CustomFieldReport(propPtr string) {
 				fmt.Printf("CustomField: %s locked %t \n", field.Name, field.IsLocked)
 
 			}
+			if field.Name == "OTHER" {
+				fmt.Printf("CustomField: %s  \n", field.Name)
+			}
 
+			// Need to investigate these custom fields - not sure how to solve this problem in a more generic way?
+			// Throws an exception - not possible to compare with EMPTY
 			if field.IsAllProjects && field.Name != "Development" && field.Name != "Progress" && field.Name != "Rank" && field.Name != "Zephyr Teststep"{
 				//fmt.Printf("CustomField: %s\n", field.Name)
 				aField.reportType = "Custom Field Global"
@@ -104,7 +112,9 @@ func CustomFieldReport(propPtr string) {
 					//panic(err)
 				}
 				aField.issueCount = issues.Total
-
+				if issues.Total>0 {
+					aField.issueUpdateDate = (time.Time)(issues.Issues[0].Fields.Updated)
+				}
 				if issues.Total>0 {
 					projloop = 1
 					remaining := issues.Total
@@ -114,7 +124,7 @@ func CustomFieldReport(propPtr string) {
 					for remaining>0 {
 						// Should be possible to optimize...
 						fmt.Printf("CustomField: %s Project: %s \n", field.Name, lastproj)
-						jql2 := fmt.Sprintf("cf[%v] is not EMPTY AND project in (\"%s\")",  field.NumericID, lastproj)
+						jql2 := fmt.Sprintf("cf[%v] is not EMPTY AND project in (\"%s\") ORDER BY updatedDate DESC",  field.NumericID, lastproj)
 						issues2, _, err := jiraClient.Issue.Search(jql2, &jira.SearchOptions{StartAt:0, MaxResults:1})
 						if err != nil {
 							panic(err)
@@ -128,6 +138,7 @@ func CustomFieldReport(propPtr string) {
 							bField.customField = field
 							bField.project = lastproj
 							bField.issueCount = issues2.Total
+							bField.issueUpdateDate = (time.Time) (issues2.Issues[0].Fields.Updated)
 							projectUsageFields[(lastproj + field.Name)] = bField
 
 						}
@@ -137,7 +148,7 @@ func CustomFieldReport(propPtr string) {
 							panic(err)
 						}
 						if (issues3.Total) == 0 { //the last
-							fmt.Printf("The Last: \n")
+							//fmt.Printf("The Last: \n")
 							remaining = 0
 						} else { //still some
 							lastproj = issues3.Issues[0].Fields.Project.Name
@@ -177,7 +188,7 @@ func CustomFieldReport(propPtr string) {
 			fmt.Printf("Result: %v\n", err2.Error())
 			panic(err2)
 		}
-			projPerm, archived := jirautils.GetPermissionScheme(jiraClient, project)
+			projPerm, archived := jirautils.GetPermissionScheme(jiraClient, project, cfg.Archivedwf)
 
 			var cField customField
 			cField.reportType = "Project"
@@ -200,7 +211,7 @@ func CustomFieldReport(propPtr string) {
 			cField.archivedProject = archived
 			projectCustomFields[field.Name] = aField
 		}
-//		limit++
+		//limit++
 		if limit > 100 {
 			break
 		}
@@ -234,6 +245,7 @@ func CustomFieldReport(propPtr string) {
 	headers = append(headers, "Customfield Projects")
 	headers = append(headers, "Customfield Screen")
 	headers = append(headers, "Issue Count")
+	headers = append(headers, "Issue Update")
 	headers = append(headers, "Projects Count")
 	headers = append(headers, "Project")
 	headers = append(headers, "Category")
@@ -286,6 +298,11 @@ func writeLine(field customField) {
 		excelutils.WiteCellnc("") //ProjectsCount
 	}
 	excelutils.WiteCellnc(fmt.Sprintf("%v", field.issueCount))
+	if time.Time.IsZero(field.issueUpdateDate)  {
+		excelutils.WiteCellnc("")
+	} else {
+		excelutils.WiteCellnc(((time.Time)(field.issueUpdateDate)).Format("2006-01-02"))
+	}
 	if field.projCount != 0 {
 		excelutils.WiteCellnc(fmt.Sprintf("%v", field.projCount))
 	} else {

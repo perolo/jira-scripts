@@ -28,6 +28,7 @@ type ReportConfig struct {
 	RolesReport      bool   `properties:"rolesreport"`
 	ExpandGroups     bool   `properties:"expandgroups"`
 	PermissionReport bool   `properties:"permissionreport"`
+	Archivedwf      string `properties:"archivedwf"`
 }
 
 type ProjectUserType struct {
@@ -196,7 +197,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	for _, project := range *projects {
 		if (cfg.ProjectCategory == "") || (project.ProjectCategory.Name == cfg.ProjectCategory) {
 
-			projPerm, closedDown := jirautils.GetPermissionScheme(jiraClient, project)
+			projPerm, closedDown := jirautils.GetPermissionScheme(jiraClient, project, cfg.Archivedwf)
 
 			if closedDown {
 				fmt.Printf("   Skipping project due to Permission Scheme\n") // mainly performance improvement, we know only admin can view

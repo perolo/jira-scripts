@@ -31,7 +31,7 @@ type Config struct {
 	Email            string `properties:"new_email"`
 	JIRA             bool   `properties:"jira"`
 	Confluence       bool   `properties:"confluence"`
-	Debug            bool   `properties:"debug"`
+//	Debug            bool   `properties:"debug"`
 	Simple           bool   `properties:"simple"`
 	File             string `properties:"file"`
 	CheckAD          bool   `properties:"checkad"`
@@ -79,7 +79,7 @@ func CreateUser(propPtr string) {
 		confluenceConfig.Username = propConfig.User
 		confluenceConfig.Password = propConfig.Pass
 		confluenceConfig.URL = propConfig.ConfHost
-		confluenceConfig.Debug = propConfig.Debug
+//		confluenceConfig.Debug = propConfig.Debug
 
 		confClient = client.Client(&confluenceConfig)
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
+	"strings"
 )
 
 func Check(e error) {
@@ -210,11 +211,19 @@ func SetNewEmail(jiraClient *jira.Client, issue jira.Issue, email string) error{
 	return err
 }
 
-func GetPermissionScheme(jiraClient *jira.Client, project jira.ProjectType) (string, bool) {
+func GetPermissionScheme(jiraClient *jira.Client, project jira.ProjectType, archivedwf string) (string, bool) {
 	// Permission Scheme
+	workflows := strings.Split(archivedwf, ",")
 	projPerm, _, err2 := jiraClient.Project.GetPermissionScheme(project.Key)
 	excelutils.Check(err2)
-	closedDown := projPerm.Name == "Permission Scheme - Standard - Closed Down" || projPerm.Name == "Archived Projects - Permission Scheme"
+	closedDown :=false
+	for _, wf := range workflows {
+		closedDown = closedDown || projPerm.Name == wf
+	}
+	closedDown1 := projPerm.Name == "Permission Scheme - Standard - Closed Down" || projPerm.Name == "Archived Projects - Permission Scheme"
+	if closedDown1 != closedDown {
+		panic(nil)
+	}
 	return projPerm.Name, closedDown
 }
 

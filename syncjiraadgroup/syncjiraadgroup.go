@@ -142,6 +142,10 @@ func JiraSyncAdGroup(propPtr string) {
 					adCount, groupCount = SyncGroupInTool(cfg, toolClient)
 					excelutils.SetCell(fmt.Sprintf("%v", adCount), 5, x)
 					excelutils.SetCell(fmt.Sprintf("%v", groupCount), 6, x)
+					if adCount == groupCount {
+						excelutils.SetCellBackground("#CCFFCC", 5, x)
+						excelutils.SetCellBackground("#CCFFCC", 6, x)
+					}
 					x = x + 1
 				} // Dirty Solution - find a better?
 			}
@@ -343,37 +347,48 @@ func DeactivateUser(jiraClient *jira.Client,  user string) (*jira.UpdateResponse
 var deactCounter = 0
 
 func TryDeactivateUserJira(basedn string,  client *jira.Client, deactuser string) {
-	deactUser, _, _ := client.User.Get(deactuser)
-	if deactUser.Active == true {
-		uresp, resp2, err := DeactivateUser(client, deactuser)
-		deactCounter++
-		if deactCounter > 10 {
-			_, errn := adutils.GetAllUserDN("perolo", basedn)
-			if errn != nil {
-				fmt.Printf("Error: finding %s \n", "perolo")
-				panic(errn)
+	deactUser, _, err := client.User.Get(deactuser)
+	if err != nil {
+		fmt.Printf("Error: %s\n", err.Error())
+	} else {
+		if deactUser.Active == true {
+			uresp, resp2, err := DeactivateUser(client, deactuser)
+			deactCounter++
+			if deactCounter > 10 {
+				_, errn := adutils.GetAllUserDN("perolo", basedn)
+				if errn != nil {
+					fmt.Printf("Error: finding %s \n", "perolo")
+					panic(errn)
+				}
+				deactCounter = 0
 			}
-			deactCounter = 0
-		}
 
-		if err != nil {
-			fmt.Printf("Error: %s\n", err.Error())
-		} else {
-			fmt.Printf("uresp.Name: %s\n", uresp.Name)
-			fmt.Printf("uresp.Name: %v\n", resp2.StatusCode)
-			deactUser2, resp2, err := client.User.Get(deactuser)
-			if err == nil {
-				if deactUser2.Active == false {
-					fmt.Printf("deactUser: %s\n", deactUser2.Name)
-					fmt.Printf("deactUser Active: %t\n", deactUser2.Active)
-					fmt.Printf("respcode: %v\n", resp2.StatusCode)
+			if err != nil {
+				fmt.Printf("Error: %s\n", err.Error())
+			} else {
+				if resp2.StatusCode == 400 {
+					fmt.Printf("uresp.Name: %s\n", uresp.Name)
+					fmt.Printf("uresp.Name: %v\n", resp2.StatusCode)
+				}
+				deactUser2, resp3, err := client.User.Get(deactuser)
+				if resp3.StatusCode == 400 {
+					fmt.Printf("uresp.Name: %s\n", uresp.Name)
+					fmt.Printf("uresp.Name: %v\n", resp3.StatusCode)
+				}
+				if err == nil {
+					if deactUser2.Active == false {
+						fmt.Printf("deactUser: %s\n", deactUser2.Name)
+						fmt.Printf("deactUser Active: %t\n", deactUser2.Active)
+						fmt.Printf("respcode: %v\n", resp3.StatusCode)
+
+					} else {
+						fmt.Printf("Error: %s\n", err.Error())
+						panic(err)
+					}
 				} else {
 					fmt.Printf("Error: %s\n", err.Error())
 					panic(err)
 				}
-			} else {
-				fmt.Printf("Error: %s\n", err.Error())
-				panic(err)
 			}
 		}
 	}

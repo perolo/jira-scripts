@@ -26,6 +26,7 @@ type ReportConfig struct {
 	File            string `properties:"file"`
 	Simple          bool   `properties:"simple"`
 	Report          bool   `properties:"report"`
+	Archivedwf      string `properties:"archivedwf"`
 	//	RolesReport      bool   `properties:"rolesreport"`
 	//	ExpandGroups     bool   `properties:"expandgroups"`
 	//	PermissionReport bool   `properties:"permissionreport"`
@@ -182,7 +183,7 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 
 		if project.ProjectCategory.Name == cfg.ProjectCategory {
 			fmt.Printf("Project name: %s Key: %s\n", project.Name, project.Key)
-			_, closedDown := jirautils.GetPermissionScheme(jiraClient, project)
+			_, closedDown := jirautils.GetPermissionScheme(jiraClient, project, cfg.Archivedwf)
 
 			if closedDown {
 				fmt.Printf("   Skipping project due to Permission Scheme\n")
