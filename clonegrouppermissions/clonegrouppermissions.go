@@ -21,9 +21,11 @@ func main() {
 
 	// or through Decode
 	type Config struct {
-		JiraHost    string `properties:"host"`
-		User        string `properties:"user"`
-		Pass        string `properties:"password"`
+		JiraHost    string `properties:"jirahost"`
+		JiraUser    string `properties:"jirauser"`
+		UseToken    bool   `properties:"usetoken"`
+		JiraPass    string `properties:"jirapass"`
+		JiraToken   string `properties:"jiratoken"`
 		Source      string `properties:"source"`
 		Destination string `properties:"destination"`
 	}
@@ -33,14 +35,20 @@ func main() {
 	}
 	var err error
 	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.User),
-		Password: strings.TrimSpace(cfg.Pass),
+		Username: strings.TrimSpace(cfg.JiraUser),
+		Password: strings.TrimSpace(cfg.JiraPass),
+		UseToken: cfg.UseToken,
 	}
 
 	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 	if err != nil {
 		fmt.Printf("\nerror: %v\n", err)
 		return
+	}
+	if cfg.UseToken {
+		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+	} else {
+		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
 	}
 
 	projects, _, err := jiraClient.Project.GetList()
@@ -76,4 +84,3 @@ func main() {
 		}
 	}
 }
-

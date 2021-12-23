@@ -20,9 +20,14 @@ import (
 
 type Config struct {
 	JiraHost         string `properties:"jirahost"`
-	User             string `properties:"user"`
-	Pass             string `properties:"password"`
 	ConfHost         string `properties:"confhost"`
+	JiraUser         string `properties:"jirauser"`
+	UseToken         bool   `properties:"usetoken"`
+	JiraPass         string `properties:"jirapass"`
+	JiraToken        string `properties:"jiratoken"`
+	ConfUser         string `properties:"confuser"`
+	ConfPass         string `properties:"confpass"`
+	ConfToken        string `properties:"conftoken"`
 	NewUser          string `properties:"new_user"`
 	ConfluenceGroups string `properties:"new_confluence_groups"`
 	JIRAGroups       string `properties:"new_jira_groups"`
@@ -31,13 +36,13 @@ type Config struct {
 	Email            string `properties:"new_email"`
 	JIRA             bool   `properties:"jira"`
 	Confluence       bool   `properties:"confluence"`
-//	Debug            bool   `properties:"debug"`
-	Simple           bool   `properties:"simple"`
-	File             string `properties:"file"`
-	CheckAD          bool   `properties:"checkad"`
-	Bindusername     string `properties:"bindusername"`
-	Bindpassword     string `properties:"bindpassword"`
-	BaseDN           string `properties:"basedn"`
+	//	Debug            bool   `properties:"debug"`
+	Simple       bool   `properties:"simple"`
+	File         string `properties:"file"`
+	CheckAD      bool   `properties:"checkad"`
+	Bindusername string `properties:"bindusername"`
+	Bindpassword string `properties:"bindpassword"`
+	BaseDN       string `properties:"basedn"`
 }
 
 //var propConfig Config
@@ -59,14 +64,20 @@ func CreateUser(propPtr string) {
 	// Start JIRA
 	if propConfig.JIRA {
 		tp := jira.BasicAuthTransport{
-			Username: strings.TrimSpace(propConfig.User),
-			Password: strings.TrimSpace(propConfig.Pass),
+			Username: strings.TrimSpace(propConfig.JiraUser),
+			Password: strings.TrimSpace(propConfig.JiraPass),
+			UseToken: propConfig.UseToken,
 		}
 
 		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(propConfig.JiraHost))
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			return
+		}
+		if propConfig.UseToken {
+			jiraClient.Authentication.SetTokenAuth(propConfig.JiraToken, propConfig.UseToken)
+		} else {
+			jiraClient.Authentication.SetBasicAuth(propConfig.JiraUser, propConfig.JiraPass, propConfig.UseToken)
 		}
 
 		fmt.Printf("User: %s\n", propConfig.NewUser)
@@ -76,10 +87,11 @@ func CreateUser(propPtr string) {
 	// Start Confluence
 	if propConfig.Confluence {
 
-		confluenceConfig.Username = propConfig.User
-		confluenceConfig.Password = propConfig.Pass
+		confluenceConfig.Username = propConfig.ConfUser
+		confluenceConfig.Password = propConfig.ConfPass
+		confluenceConfig.UseToken = propConfig.UseToken
 		confluenceConfig.URL = propConfig.ConfHost
-//		confluenceConfig.Debug = propConfig.Debug
+		//		confluenceConfig.Debug = propConfig.Debug
 
 		confClient = client.Client(&confluenceConfig)
 
@@ -124,8 +136,8 @@ func doCreateUser(propConfig Config, err error, confClient *client.ConfluenceCli
 	if propConfig.CheckAD {
 		aduser, err := adutils.GetActiveUserDN(propConfig.NewUser, propConfig.BaseDN)
 		if err != nil {
-//			fmt.Printf("\nerror: %v\n", err)
-			fmt.Printf("User: %s not found in the Ad\n",propConfig.NewUser)
+			//			fmt.Printf("\nerror: %v\n", err)
+			fmt.Printf("User: %s not found in the Ad\n", propConfig.NewUser)
 			reader := bufio.NewReader(os.Stdin)
 
 			fmt.Printf("Create user anyway? [y/n]: ")

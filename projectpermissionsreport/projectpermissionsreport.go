@@ -17,10 +17,15 @@ import (
 )
 
 type ReportConfig struct {
-	Host             string `properties:"host"`
+	JiraHost         string `properties:"jirahost"`
+	JiraUser         string `properties:"jirauser"`
+	JiraPass         string `properties:"jirapass"`
+	JiraToken        string `properties:"jiratoken"`
 	ConfHost         string `properties:"confhost"`
-	User             string `properties:"user"`
-	Pass             string `properties:"password"`
+	ConfUser         string `properties:"confuser"`
+	ConfPass         string `properties:"confpass"`
+	ConfToken        string `properties:"conftoken"`
+	UseToken         bool   `properties:"usetoken"`
 	ProjectCategory  string `properties:"projectcategory"`
 	File             string `properties:"file"`
 	Simple           bool   `properties:"simple"`
@@ -28,11 +33,12 @@ type ReportConfig struct {
 	RolesReport      bool   `properties:"rolesreport"`
 	ExpandGroups     bool   `properties:"expandgroups"`
 	PermissionReport bool   `properties:"permissionreport"`
-	Archivedwf      string `properties:"archivedwf"`
+	Archivedwf       string `properties:"archivedwf"`
 }
 
 type ProjectUserType struct {
 	projectName      string
+	projectLead      string
 	permissionScheme string
 	user             string
 	group            string
@@ -41,7 +47,7 @@ type ProjectUserType struct {
 	adminPermission  bool
 	teamPermission   bool
 	browsePermission bool
-	active bool
+	active           bool
 }
 
 var permissions = []string{
@@ -63,11 +69,23 @@ func ProjectPermissionsReport(propPtr string) {
 	if err := p.Decode(&cfg); err != nil {
 		log.Fatal(err)
 	}
+	if cfg.UseToken {
+		cfg.ConfPass = cfg.ConfToken
+		cfg.JiraPass = cfg.JiraToken
+	} else {
+	}
+
 	if cfg.Simple {
 		cfg.File = fmt.Sprintf(cfg.File, "-"+cfg.ProjectCategory)
 		CreateProjectPermissionsReport(cfg)
 	} else {
 		reportBase := cfg.File
+		/* All - too large....
+		cfg.ProjectCategory = ""
+		cfg.File = fmt.Sprintf(reportBase, "-all")
+		fmt.Printf("Category: all \n")
+		CreateProjectPermissionsReport(cfg)
+		*/
 		for _, category := range Categories {
 			cfg.ProjectCategory = category
 			cfg.File = fmt.Sprintf(reportBase, "-"+category)
@@ -77,7 +95,7 @@ func ProjectPermissionsReport(propPtr string) {
 	}
 }
 
-func addUser(project jira.ProjectType, projRole string, name string, dispName string, group string, scheme string, browse bool, team bool, admin bool, active bool) {
+func addUser(project jira.ProjectType, projLead string, projRole string, name string, dispName string, group string, scheme string, browse bool, team bool, admin bool, active bool) {
 
 	var index = project.Name + "-" + name + "-" + group
 	val, ok := allProjectUsers[index]
@@ -85,6 +103,7 @@ func addUser(project jira.ProjectType, projRole string, name string, dispName st
 	if ok {
 		val.user = name
 		val.projectName = project.Name
+		val.projectLead = projLead
 		val.group = group
 		if !strings.Contains(val.role, projRole) {
 			val.role = val.role + " + " + projRole
@@ -109,7 +128,7 @@ func addUser(project jira.ProjectType, projRole string, name string, dispName st
 		theProjectUSer.browsePermission = browse
 		theProjectUSer.teamPermission = team
 		theProjectUSer.adminPermission = admin
-		theProjectUSer.active =  active
+		theProjectUSer.active = active
 		allProjectUsers[index] = theProjectUSer
 	}
 
@@ -119,7 +138,6 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 
 	allProjectUsers = make(map[string]ProjectUserType)
 
-
 	excelutils.NewFile()
 
 	excelutils.SetCellFontHeader()
@@ -127,18 +145,24 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	excelutils.WiteCellln("Please Do not edit this page!")
 	excelutils.WiteCellln("This page is created by the User Report script: " + "https://github/perolo/jira-scripts" + "/" + "ProjectPermissionsReport")
 	t := time.Now()
-	excelutils.WiteCellln("Created by: " + cfg.User + " : " + t.Format(time.RFC3339))
+	excelutils.WiteCellln("Created by: " + cfg.ConfUser + " : " + t.Format(time.RFC3339))
 	excelutils.WiteCellln("")
 
 	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.User),
-		Password: strings.TrimSpace(cfg.Pass),
+		Username: strings.TrimSpace(cfg.JiraUser),
+		Password: strings.TrimSpace(cfg.JiraPass),
+		UseToken: cfg.UseToken,
 	}
 
-	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.Host))
+	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 	if err != nil {
 		fmt.Printf("\nerror: %v\n", err)
 		return
+	}
+	if cfg.UseToken {
+		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+	} else {
+		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
 	}
 
 	excelutils.SetCellFontHeader2()
@@ -148,6 +172,10 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 
 	excelutils.SetTableHeader()
 	excelutils.WiteCell("Project Name")
+	excelutils.NextCol()
+
+	excelutils.SetTableHeader()
+	excelutils.WiteCell("Project Lead")
 	excelutils.NextCol()
 
 	excelutils.SetTableHeader()
@@ -197,12 +225,13 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	for _, project := range *projects {
 		if (cfg.ProjectCategory == "") || (project.ProjectCategory.Name == cfg.ProjectCategory) {
 
-			projPerm, closedDown := jirautils.GetPermissionScheme(jiraClient, project, cfg.Archivedwf)
+			projPerm, closedDown := jirautils.GetPermissionScheme(jiraClient, project.Key, cfg.Archivedwf)
 
 			if closedDown {
 				fmt.Printf("   Skipping project due to Permission Scheme\n") // mainly performance improvement, we know only admin can view
 			} else {
 
+				p, _, _ := jiraClient.Project.Get(project.ID)
 				if cfg.RolesReport {
 					roles, _, err := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
 					excelutils.Check(err)
@@ -231,7 +260,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 										members, _, err := jiraClient.Group.GetWithOptionsWithContext(context.Background(), actor.Name, &jira.GroupSearchOptions{StartAt: start, MaxResults: max})
 										excelutils.Check(err)
 										for _, member := range members {
-											addUser(project, projRole.Name, member.Name, member.DisplayName, actor.Name, projPerm, false, false, false, false)
+											addUser(project, p.Lead.Name, projRole.Name, member.Name, member.DisplayName, actor.Name, projPerm, false, false, false, false)
 										}
 										if len(members) != max {
 											cont = false
@@ -240,11 +269,11 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 										}
 									}
 								} else {
-									addUser(project, projRole.Name, actor.Name, actor.DisplayName, "group", projPerm, false, false, false, false)
+									addUser(project, p.Lead.Name, projRole.Name, actor.Name, actor.DisplayName, "group", projPerm, false, false, false, false)
 								}
 							} else if actor.Type == "atlassian-user-role-actor" {
 
-								addUser(project, projRole.Name, actor.Name, actor.DisplayName, "user", projPerm, false, false, false, false)
+								addUser(project, p.Lead.Name, projRole.Name, actor.Name, actor.DisplayName, "user", projPerm, false, false, false, false)
 								//addUser(project, projRole, member.Name, member.DisplayName, actor.Name, allProjectUsers, member.EmailAddress)
 							} else {
 								// QUE???
@@ -267,7 +296,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 								for _, mem := range *members {
 									fmt.Printf("Permissions: %s User: %s\n", perm, mem.Name)
 
-									addUser(project, "PermSearch", mem.Name, mem.DisplayName, "user", projPerm, perm == permissions[2], perm == permissions[1], perm == permissions[0], mem.Active)
+									addUser(project, p.Lead.Name, "PermSearch", mem.Name, mem.DisplayName, "user", projPerm, perm == permissions[2], perm == permissions[1], perm == permissions[0], mem.Active)
 								}
 								if len(*members) != max {
 									cont = false
@@ -285,6 +314,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 		fmt.Printf("User : %s \n", user.user)
 		//		excelutils.WiteCellnc(k)
 		excelutils.WiteCellnc(user.projectName)
+		excelutils.WiteCellnc(user.projectLead)
 		excelutils.WiteCellnc(user.permissionScheme)
 		excelutils.WiteCellnc(user.role)
 		excelutils.WiteCellnc(user.group)
@@ -309,8 +339,9 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	if cfg.Report {
 		var config = client.ConfluenceConfig{}
 		var copt client.OperationOptions
-		config.Username = cfg.User
-		config.Password = cfg.Pass
+		config.Username = cfg.ConfUser
+		config.Password = cfg.ConfPass
+		config.UseToken = cfg.UseToken
 		config.URL = cfg.ConfHost
 		config.Debug = false
 		confluenceClient := client.Client(&config)
@@ -319,7 +350,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 		copt.SpaceKey = "AAAD"
 		_, name := filepath.Split(cfg.File)
 		err = utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Project Permissions Report")
-		if err!= nil {
+		if err != nil {
 			panic(err)
 		}
 	}

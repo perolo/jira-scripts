@@ -18,10 +18,15 @@ import (
 )
 
 type ReportConfig struct {
-	Host            string `properties:"host"`
+	JiraHost        string `properties:"jirahost"`
+	JiraUser        string `properties:"jirauser"`
+	JiraPass        string `properties:"jirapass"`
+	JiraToken       string `properties:"jiratoken"`
 	ConfHost        string `properties:"confhost"`
-	User            string `properties:"user"`
-	Pass            string `properties:"password"`
+	ConfUser        string `properties:"confuser"`
+	ConfPass        string `properties:"confpass"`
+	ConfToken       string `properties:"conftoken"`
+	UseToken        bool   `properties:"usetoken"`
 	ProjectCategory string `properties:"projectcategory"`
 	File            string `properties:"file"`
 	Simple          bool   `properties:"simple"`
@@ -58,6 +63,11 @@ func InactiveUserReport(propPtr string) {
 	if err := p.Decode(&cfg); err != nil {
 		log.Fatal(err)
 	}
+	if cfg.UseToken {
+		cfg.ConfPass = cfg.ConfToken
+		cfg.JiraPass = cfg.JiraToken
+	} else {
+	}
 
 	if cfg.Simple {
 		cfg.File = fmt.Sprintf(cfg.File, "-"+"Inactive Users"+"-"+cfg.ProjectCategory)
@@ -66,13 +76,12 @@ func InactiveUserReport(propPtr string) {
 		reportBase := cfg.File
 		for _, category := range projectpermissionsreport.Categories {
 			cfg.ProjectCategory = category
-//			cfg.File = fmt.Sprintf(reportBase, "-"+category)
+			//			cfg.File = fmt.Sprintf(reportBase, "-"+category)
 			cfg.File = fmt.Sprintf(reportBase, "-"+"Inactive Users"+"-"+cfg.ProjectCategory)
 			fmt.Printf("Category: %s \n", cfg.ProjectCategory)
 			CreateInactiveUsersReport(cfg)
 		}
 	}
-
 
 }
 
@@ -109,18 +118,24 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 	excelutils.WiteCellln("Please Do not edit this page!")
 	excelutils.WiteCellln("This page is created by the User Report script: " + "https://github/perolo/jira-scripts" + "/" + "InactiveUserReport")
 	t := time.Now()
-	excelutils.WiteCellln("Created by: " + cfg.User + " : " + t.Format(time.RFC3339))
+	excelutils.WiteCellln("Created by: " + cfg.ConfUser + " : " + t.Format(time.RFC3339))
 	excelutils.WiteCellln("")
 
 	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.User),
-		Password: strings.TrimSpace(cfg.Pass),
+		Username: strings.TrimSpace(cfg.JiraUser),
+		Password: strings.TrimSpace(cfg.JiraPass),
+		UseToken: cfg.UseToken,
 	}
 
-	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.Host))
+	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 	if err != nil {
 		fmt.Printf("\nerror: %v\n", err)
 		return
+	}
+	if cfg.UseToken {
+		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+	} else {
+		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
 	}
 
 	excelutils.SetCellFontHeader2()
@@ -183,7 +198,7 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 
 		if project.ProjectCategory.Name == cfg.ProjectCategory {
 			fmt.Printf("Project name: %s Key: %s\n", project.Name, project.Key)
-			_, closedDown := jirautils.GetPermissionScheme(jiraClient, project, cfg.Archivedwf)
+			_, closedDown := jirautils.GetPermissionScheme(jiraClient, project.Key, cfg.Archivedwf)
 
 			if closedDown {
 				fmt.Printf("   Skipping project due to Permission Scheme\n")
@@ -252,8 +267,9 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 	if cfg.Report {
 		var config = client.ConfluenceConfig{}
 		var copt client.OperationOptions
-		config.Username = cfg.User
-		config.Password = cfg.Pass
+		config.Username = cfg.ConfUser
+		config.Password = cfg.ConfPass
+		config.UseToken = cfg.UseToken
 		config.URL = cfg.ConfHost
 		config.Debug = false
 		confluenceClient := client.Client(&config)
@@ -263,7 +279,7 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 
 		_, name := filepath.Split(cfg.File)
 		err = utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Inactive Users Report")
-		if err!= nil {
+		if err != nil {
 			panic(err)
 		}
 	}

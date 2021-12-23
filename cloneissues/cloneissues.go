@@ -21,13 +21,15 @@ func main() {
 
 	// or through Decode
 	type Config struct {
-		JiraHost string `properties:"jirahost"`
-		User string `properties:"user"`
-		Pass string `properties:"password"`
+		JiraHost           string `properties:"jirahost"`
+		JiraUser           string `properties:"jirauser"`
+		UseToken           bool   `properties:"usetoken"`
+		JiraPass           string `properties:"jirapass"`
+		JiraToken          string `properties:"jiratoken"`
 		DestinationProject string `properties:"destinationproject"`
-		JQL string `properties:"jql"`
-		CloneSubtasks bool `properties:"clonesubtasks"`
-		AddLabel string `properties:"label"` //to be implemented
+		JQL                string `properties:"jql"`
+		CloneSubtasks      bool   `properties:"clonesubtasks"`
+		AddLabel           string `properties:"label"` //to be implemented
 	}
 	var cfg Config
 	if err := p.Decode(&cfg); err != nil {
@@ -35,8 +37,9 @@ func main() {
 	}
 
 	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.User),
-		Password: strings.TrimSpace(cfg.Pass),
+		Username: strings.TrimSpace(cfg.JiraUser),
+		Password: strings.TrimSpace(cfg.JiraPass),
+		UseToken: cfg.UseToken,
 	}
 
 	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
@@ -44,37 +47,42 @@ func main() {
 		fmt.Printf("\nerror: %v\n", err)
 		return
 	}
+	if cfg.UseToken {
+		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+	} else {
+		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
+	}
 	//Get all source issues
-	var allIssues [] jira.Issue
-	cont :=true
-	start:=0
+	var allIssues []jira.Issue
+	cont := true
+	start := 0
 	max := 50
 	for cont {
 		//qjql := url.QueryEscape(propConfig.JQL)
-		sres, _, err := jiraClient.Issue.Search(cfg.JQL, &jira.SearchOptions{StartAt:start, MaxResults:max})
+		sres, _, err := jiraClient.Issue.Search(cfg.JQL, &jira.SearchOptions{StartAt: start, MaxResults: max})
 		if err != nil {
 			panic(err)
 		}
 		allIssues = append(allIssues, sres.Issues...)
-		if len(sres.Issues) !=max {
-			cont=false
+		if len(sres.Issues) != max {
+			cont = false
 		} else {
 			start = start + max
 		}
 	}
 
-	var sourceIssueTypes  map[string]string
-	sourceIssueTypes = make(map[string]string,10)
+	var sourceIssueTypes map[string]string
+	sourceIssueTypes = make(map[string]string, 10)
 
 	//Get source issue types
 	for _, iss := range allIssues {
-		if _, ok :=sourceIssueTypes[iss.Fields.Type.Name]; !ok{
+		if _, ok := sourceIssueTypes[iss.Fields.Type.Name]; !ok {
 			sourceIssueTypes[iss.Fields.Type.Name] = iss.Fields.Type.Name
 		}
 	}
 
 	//Check source issue types exist in destination
-	dproj,_, err := jiraClient.Project.Get(cfg.DestinationProject)
+	dproj, _, err := jiraClient.Project.Get(cfg.DestinationProject)
 
 	for _, siss := range sourceIssueTypes {
 		found := false
@@ -83,7 +91,7 @@ func main() {
 				found = true
 			}
 		}
-		if siss == "Sub-task"  {
+		if siss == "Sub-task" {
 			fmt.Printf("Do not include subtasks in JQL, handled with option : clonesubtasks \n")
 			panic(err)
 		}
@@ -127,7 +135,7 @@ func main() {
 		}
 
 		aComment := new(jira.Comment)
-		aComment.Body = "Issue copied using jiraclonescript by " + cfg.User + " " + time.Now().Format("2006-01-02 15:04:05")
+		aComment.Body = "Issue copied using jiraclonescript by " + cfg.JiraUser + " " + time.Now().Format("2006-01-02 15:04:05")
 		_, _, err = jiraClient.Issue.AddComment(createdIss.Key, aComment)
 		if err != nil {
 			fmt.Printf("Result: %s\n", err.Error())
@@ -174,8 +182,7 @@ func createSubIssue(iss jira.Subtasks, dproj *jira.Project, jiraClient *jira.Cli
 	newIssue.Fields.Project.Key = dproj.Key
 	newIssue.Fields.Type.Name = iss.Fields.Type.Name
 
-
-	newIssue.Fields.Parent = &jira.Parent{ID:parent.ID,Key:parent.Key}
+	newIssue.Fields.Parent = &jira.Parent{ID: parent.ID, Key: parent.Key}
 
 	newIssue.Fields.Labels = iss.Fields.Labels
 

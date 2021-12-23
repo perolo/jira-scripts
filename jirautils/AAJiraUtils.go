@@ -13,7 +13,7 @@ func Check(e error) {
 	}
 }
 
-func AddComment(jiraClient *jira.Client, issue jira.Issue, comment string ) error {
+func AddComment(jiraClient *jira.Client, issue jira.Issue, comment string) error {
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
 	afield := make(map[string]interface{})
@@ -27,7 +27,7 @@ func AddComment(jiraClient *jira.Client, issue jira.Issue, comment string ) erro
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if err!=nil {
+	if err != nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -46,7 +46,7 @@ func Contains(s []string, e string) bool {
 }
 
 func AddLabelIfMissing(issue jira.Issue, label string, jiraClient *jira.Client) error {
-	var  err error
+	var err error
 	if Contains(issue.Fields.Labels, label) {
 		// Skip
 		fmt.Printf("Label already set: %s \n", issue.Key)
@@ -63,7 +63,7 @@ func AddLabelIfMissing(issue jira.Issue, label string, jiraClient *jira.Client) 
 	return err
 }
 
-func AddLabel(jiraClient *jira.Client, issue jira.Issue, label string ) error {
+func AddLabel(jiraClient *jira.Client, issue jira.Issue, label string) error {
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
 	afield := make(map[string]interface{})
@@ -77,7 +77,7 @@ func AddLabel(jiraClient *jira.Client, issue jira.Issue, label string ) error {
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if err!=nil {
+	if err != nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -85,7 +85,6 @@ func AddLabel(jiraClient *jira.Client, issue jira.Issue, label string ) error {
 	return err
 
 }
-
 
 func SetSummary(jiraClient *jira.Client, issue jira.Issue, newSummary string) error {
 	//Modify Summary
@@ -100,7 +99,7 @@ func SetSummary(jiraClient *jira.Client, issue jira.Issue, newSummary string) er
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if err!=nil {
+	if err != nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -108,7 +107,7 @@ func SetSummary(jiraClient *jira.Client, issue jira.Issue, newSummary string) er
 	return err
 }
 
-func RemoveComponent(jiraClient *jira.Client, issue jira.Issue, emeta *jira.EditMetaInfo) error{
+func RemoveComponent(jiraClient *jira.Client, issue jira.Issue, emeta *jira.EditMetaInfo) error {
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
 	afield := make(map[string]interface{})
@@ -117,7 +116,7 @@ func RemoveComponent(jiraClient *jira.Client, issue jira.Issue, emeta *jira.Edit
 	v, ok := comp.(map[string]interface{})
 	if !ok {
 		// Can't assert, handle error.
-		return  fmt.Errorf("component: Illegal name")
+		return fmt.Errorf("component: Illegal name")
 	}
 	d := v["allowedValues"].([]interface{})
 	for _, s := range d {
@@ -141,7 +140,7 @@ func RemoveComponent(jiraClient *jira.Client, issue jira.Issue, emeta *jira.Edit
 	*/
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if err!=nil {
+	if err != nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -149,7 +148,7 @@ func RemoveComponent(jiraClient *jira.Client, issue jira.Issue, emeta *jira.Edit
 	return err
 }
 
-func SetUser(jiraClient *jira.Client, issue jira.Issue, newUser string) error{
+func SetUser(jiraClient *jira.Client, issue jira.Issue, newUser string) error {
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
 	afield := make(map[string]interface{})
@@ -163,7 +162,7 @@ func SetUser(jiraClient *jira.Client, issue jira.Issue, newUser string) error{
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if err!=nil {
+	if err != nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -171,7 +170,7 @@ func SetUser(jiraClient *jira.Client, issue jira.Issue, newUser string) error{
 	return err
 }
 
-func SetNewName(jiraClient *jira.Client, issue jira.Issue, newUser string) error{
+func SetNewName(jiraClient *jira.Client, issue jira.Issue, newUser string) error {
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
 	afield := make(map[string]interface{})
@@ -183,7 +182,7 @@ func SetNewName(jiraClient *jira.Client, issue jira.Issue, newUser string) error
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if err!=nil {
+	if err != nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -191,7 +190,7 @@ func SetNewName(jiraClient *jira.Client, issue jira.Issue, newUser string) error
 	return err
 }
 
-func SetNewEmail(jiraClient *jira.Client, issue jira.Issue, email string) error{
+func SetNewEmail(jiraClient *jira.Client, issue jira.Issue, email string) error {
 	i := make(map[string]interface{})
 	fields := make(map[string]interface{})
 	afield := make(map[string]interface{})
@@ -203,7 +202,7 @@ func SetNewEmail(jiraClient *jira.Client, issue jira.Issue, email string) error{
 
 	resp, err := jiraClient.Issue.UpdateIssue(issue.ID, i)
 
-	if err!=nil {
+	if err != nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -211,12 +210,12 @@ func SetNewEmail(jiraClient *jira.Client, issue jira.Issue, email string) error{
 	return err
 }
 
-func GetPermissionScheme(jiraClient *jira.Client, project jira.ProjectType, archivedwf string) (string, bool) {
+func GetPermissionScheme(jiraClient *jira.Client, projectKey string, archivedwf string) (string, bool) {
 	// Permission Scheme
 	workflows := strings.Split(archivedwf, ",")
-	projPerm, _, err2 := jiraClient.Project.GetPermissionScheme(project.Key)
+	projPerm, _, err2 := jiraClient.Project.GetPermissionScheme(projectKey)
 	excelutils.Check(err2)
-	closedDown :=false
+	closedDown := false
 	for _, wf := range workflows {
 		closedDown = closedDown || projPerm.Name == wf
 	}
@@ -226,5 +225,3 @@ func GetPermissionScheme(jiraClient *jira.Client, project jira.ProjectType, arch
 	}
 	return projPerm.Name, closedDown
 }
-
-

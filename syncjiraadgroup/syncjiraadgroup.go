@@ -1,6 +1,7 @@
 package syncjiraadgroup
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"github.com/magiconair/properties"
@@ -10,6 +11,7 @@ import (
 	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
 	"log"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,10 +19,15 @@ import (
 )
 
 type Config struct {
-	Host            string `properties:"host"`
+	Host            string `properties:"jirahost"`
 	ConfHost        string `properties:"confhost"`
-	User            string `properties:"user"`
-	Pass            string `properties:"password"`
+	JiraUser        string `properties:"jirauser"`
+	ConfUser        string `properties:"confuser"`
+	ConfPass        string `properties:"confpass"`
+	JiraPass        string `properties:"jirapass"`
+	JiraToken       string `properties:"jiratoken"`
+	ConfToken       string `properties:"conftoken"`
+	UseToken        bool   `properties:"usetoken"`
 	Simple          bool   `properties:"simple"`
 	AddOperation    bool   `properties:"add"`
 	RemoveOperation bool   `properties:"remove"`
@@ -30,14 +37,14 @@ type Config struct {
 	AdGroup         string `properties:"adgroup"`
 	Localgroup      string `properties:"localgroup"`
 	File            string `properties:"file"`
-//	Reset            bool `properties:"reset"`
-	ConfUpload      bool   `properties:"confupload"`
-	ConfPage        string `properties:"confluencepage"`
-	ConfSpace       string `properties:"confluencespace"`
-	ConfAttName     string `properties:"conlfuenceattachment"`
-	Bindusername    string `properties:"bindusername"`
-	Bindpassword    string `properties:"bindpassword"`
-	BaseDN          string `properties:"basedn"`
+	//	Reset            bool `properties:"reset"`
+	ConfUpload   bool   `properties:"confupload"`
+	ConfPage     string `properties:"confluencepage"`
+	ConfSpace    string `properties:"confluencespace"`
+	ConfAttName  string `properties:"conlfuenceattachment"`
+	Bindusername string `properties:"bindusername"`
+	Bindpassword string `properties:"bindpassword"`
+	BaseDN       string `properties:"basedn"`
 }
 
 func initReport(cfg Config) {
@@ -48,7 +55,7 @@ func initReport(cfg Config) {
 		excelutils.WiteCellln("Please Do not edit this page!")
 		excelutils.WiteCellln("This page is created by the projectreport script: github.com\\perolo\\confluence-scripts\\SyncADGroup")
 		t := time.Now()
-		excelutils.WiteCellln("Created by: " + cfg.User + " : " + t.Format(time.RFC3339))
+		excelutils.WiteCellln("Created by: " + cfg.ConfUser + " : " + t.Format(time.RFC3339))
 		excelutils.WiteCellln("")
 		excelutils.WiteCellln("The Report Function shows:")
 		excelutils.WiteCellln("   AdNames - Name and user found in AD Group")
@@ -92,8 +99,9 @@ func endReport(cfg Config) error {
 
 			var config = client.ConfluenceConfig{}
 			var copt client.OperationOptions
-			config.Username = cfg.User
-			config.Password = cfg.Pass
+			config.Username = cfg.ConfUser
+			config.Password = cfg.ConfPass
+			config.UseToken = cfg.UseToken
 			config.URL = cfg.ConfHost
 			config.Debug = false
 			confluenceClient := client.Client(&config)
@@ -119,6 +127,12 @@ func JiraSyncAdGroup(propPtr string) {
 	if err := p.Decode(&cfg); err != nil {
 		log.Fatal(err)
 	}
+	// Temporary workaround solution - need to find better?
+	if cfg.UseToken {
+		cfg.ConfPass = cfg.ConfToken
+		cfg.JiraPass = cfg.JiraToken
+	} else {
+	}
 
 	toolClient := toollogin(cfg)
 	initReport(cfg)
@@ -128,27 +142,27 @@ func JiraSyncAdGroup(propPtr string) {
 		SyncGroupInTool(cfg, toolClient)
 	} else {
 		for _, syn := range GroupSyncs {
-				adCount := 0
-				groupCount := 0
-				if !syn.InJira && !syn.InConfluence {
-					log.Fatal("Error in setup")
-				}
-				if syn.InJira {
-					cfg.AdGroup = syn.AdGroup
-					cfg.Localgroup = syn.LocalGroup
-					cfg.AddOperation = syn.DoAdd
-					cfg.RemoveOperation = syn.DoRemove
-					cfg.AutoDisable = syn.AutoDisable
-					adCount, groupCount = SyncGroupInTool(cfg, toolClient)
-					excelutils.SetCell(fmt.Sprintf("%v", adCount), 5, x)
-					excelutils.SetCell(fmt.Sprintf("%v", groupCount), 6, x)
-					if adCount == groupCount {
-						excelutils.SetCellBackground("#CCFFCC", 5, x)
-						excelutils.SetCellBackground("#CCFFCC", 6, x)
-					}
-					x = x + 1
-				} // Dirty Solution - find a better?
+			adCount := 0
+			groupCount := 0
+			if !syn.InJira && !syn.InConfluence {
+				log.Fatal("Error in setup")
 			}
+			if syn.InJira {
+				cfg.AdGroup = syn.AdGroup
+				cfg.Localgroup = syn.LocalGroup
+				cfg.AddOperation = syn.DoAdd
+				cfg.RemoveOperation = syn.DoRemove
+				cfg.AutoDisable = syn.AutoDisable
+				adCount, groupCount = SyncGroupInTool(cfg, toolClient)
+				excelutils.SetCell(fmt.Sprintf("%v", adCount), 5, x)
+				excelutils.SetCell(fmt.Sprintf("%v", groupCount), 6, x)
+				if adCount == groupCount {
+					excelutils.SetCellBackground("#CCFFCC", 5, x)
+					excelutils.SetCellBackground("#CCFFCC", 6, x)
+				}
+				x = x + 1
+			} // Dirty Solution - find a better?
+		}
 	}
 	err := endReport(cfg)
 	if err != nil {
@@ -159,10 +173,18 @@ func JiraSyncAdGroup(propPtr string) {
 
 func toollogin(cfg Config) *jira.Client {
 	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.User),
-		Password: strings.TrimSpace(cfg.Pass),
+		Username: strings.TrimSpace(cfg.JiraUser),
+		Password: strings.TrimSpace(cfg.JiraPass),
+		UseToken: cfg.UseToken,
 	}
 	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.Host))
+
+	//jiraClient.Debug = true
+	if cfg.UseToken {
+		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+	} else {
+		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
+	}
 	if err != nil {
 		fmt.Printf("\nerror: %v\n", err)
 		return nil
@@ -288,13 +310,26 @@ func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount i
 		if cfg.RemoveOperation {
 			for _, notin := range notInAD {
 				if notin.Err == "" {
-					fmt.Printf("Remove user. Group: %s status: %s \n", cfg.Localgroup, notin.Uname)
-					_, err := client.Group.Remove(cfg.Localgroup, notin.Uname)
+					fmt.Printf("About to Remove user. Group: %s Uname: %s Name: %s \n", cfg.Localgroup, notin.Uname, notin.Name)
+					fmt.Printf("Remove [y/n]: ")
+
+					reader := bufio.NewReader(os.Stdin)
+					response, err := reader.ReadString('\n')
 					if err != nil {
-						fmt.Printf("Failed to remove user. Group: %s status: %s \n", cfg.Localgroup, notin.Uname)
+						log.Fatal(err)
 					}
-				} else {
-					fmt.Printf("Ad Problems skipping remove: %s \n", notin.Uname)
+
+					response = strings.ToLower(strings.TrimSpace(response))
+
+					if response == "y" || response == "yes" {
+
+						_, err := client.Group.Remove(cfg.Localgroup, notin.Uname)
+						if err != nil {
+							fmt.Printf("Failed to remove user. Group: %s status: %s \n", cfg.Localgroup, notin.Uname)
+						}
+					} else {
+						fmt.Printf("Respone No - skipping remove: %s \n", notin.Uname)
+					}
 				}
 			}
 		}
@@ -308,9 +343,18 @@ func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]
 	start := 0
 	max := 50
 	for cont {
-		groupMembers, _, err := theClient.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max,  IncludeInactiveUsers: false})
+		groupMembers, resp, err := theClient.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max, IncludeInactiveUsers: false})
 		if err != nil {
-			panic(err)
+			if resp.StatusCode == 404 { // group not found?
+				theClient.Group.AddGroup(localgroup)
+				groupMembers, resp, err = theClient.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max, IncludeInactiveUsers: false})
+				if err != nil {
+					panic(err)
+				}
+
+			} else {
+				panic(err)
+			}
 		}
 		for _, member := range groupMembers {
 			if _, ok := groupMemberNames[member.Name]; !ok {
@@ -330,13 +374,13 @@ func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]
 	return groupMemberNames
 }
 
-func DeactivateUser(jiraClient *jira.Client,  user string) (*jira.UpdateResponse, *jira.Response, error){
+func DeactivateUser(jiraClient *jira.Client, user string) (*jira.UpdateResponse, *jira.Response, error) {
 	i := make(map[string]interface{})
 	i["active"] = false
 
 	uresp, resp, err := jiraClient.User.Update(user, i)
 
-	if err!=nil {
+	if err != nil {
 		fmt.Printf("StatusCode: %v err: %s \n", resp.StatusCode, err.Error())
 	} else {
 		fmt.Printf("StatusCode: %v \n", resp.StatusCode)
@@ -346,7 +390,7 @@ func DeactivateUser(jiraClient *jira.Client,  user string) (*jira.UpdateResponse
 
 var deactCounter = 0
 
-func TryDeactivateUserJira(basedn string,  client *jira.Client, deactuser string) {
+func TryDeactivateUserJira(basedn string, client *jira.Client, deactuser string) {
 	deactUser, _, err := client.User.Get(deactuser)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
