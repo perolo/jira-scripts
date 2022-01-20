@@ -54,8 +54,9 @@ func ProjectGroupConsolidator(propPtr string) {
 		cfg.JiraPass = cfg.JiraToken
 	} else {
 	}
-
-	if cfg.JiraHost != "https://jira-dev.assaabloy.net" {
+	// Just a safety check
+	//https://jira-dev.assaabloy.net
+	if cfg.JiraHost != "https://jira-prod-dc2.assaabloy.net" {
 		log.Fatal(nil)
 	}
 
@@ -82,10 +83,13 @@ func ProjectGroupConsolidator(propPtr string) {
 		roleLookup := make(map[string]string)
 
 		for _, group := range Groups {
-			fmt.Printf("Category: %s \n", group)
+			fmt.Printf("Project: %s \n", group.projectName)
 			project, _, _ := jiraClient.Project.Get(group.projectName)
 
 			projPerm, closedDown := jirautils.GetPermissionScheme(jiraClient, project.Key, cfg.Archivedwf)
+
+			roles, _, err := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
+			excelutils.Check(err)
 
 			if closedDown {
 				fmt.Printf("   Skipping project due to Permission Scheme\n")
@@ -106,115 +110,124 @@ func ProjectGroupConsolidator(propPtr string) {
 				allUsers := make(map[string]string)
 				//members, ret, err := jiraClient.Group.Get(group.Group)
 
-				//safe := url.QueryEscape(group.Group)
-				contjira := true
-				startjira := 0
-				maxjira := 50
-				for contjira {
+				if group.Group != "" {
 
-					jiramembers, _, _ := jiraClient.Group.GetWithOptionsWithContext(context.Background(), group.Group, &jira.GroupSearchOptions{StartAt: startjira, MaxResults: maxjira})
+					//safe := url.QueryEscape(group.Group)
+					contjira := true
+					startjira := 0
+					maxjira := 50
+					for contjira {
 
-					for _, jiramember := range jiramembers {
-						if _, ok := allUsers[jiramember.Name]; ok {
+						jiramembers, _, err := jiraClient.Group.GetWithOptionsWithContext(context.Background(), group.Group, &jira.GroupSearchOptions{StartAt: startjira, MaxResults: maxjira})
+						excelutils.Check(err)
+
+						for _, jiramember := range jiramembers {
+							if _, ok := allUsers[jiramember.Name]; ok {
+							} else {
+								allUsers[jiramember.Name] = jiramember.Name
+							}
+						}
+						if len(jiramembers) != maxjira {
+							contjira = false
 						} else {
-							allUsers[jiramember.Name] = jiramember.Name
+							startjira = startjira + maxjira
 						}
 					}
-					if len(jiramembers) != maxjira {
-						contjira = false
-					} else {
-						startjira = startjira + maxjira
-					}
-				}
 
-				roles, _, err := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
+					excelutils.Check(err)
+					for _, arole := range *roles {
+						roleLookup[arole.ID] = arole.Name
+						if arole.Name == group.Role {
 
-				excelutils.Check(err)
-				for _, arole := range *roles {
-					roleLookup[arole.ID] = arole.Name
-					if arole.Name == group.Role {
-						projRole, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
-						excelutils.Check(err)
-						fmt.Printf("   Role: %s\n", arole.Name)
+							projRole, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
+							excelutils.Check(err)
+							fmt.Printf("   Role: %s\n", arole.Name)
 
-						for _, actor := range projRole.Actors {
+							for _, actor := range projRole.Actors {
 
-							if actor.Type == "atlassian-group-role-actor" {
-								fmt.Printf("   %s atlassian-group-role-actor: %s\n", arole.Name, actor.Name)
+								if actor.Type == "atlassian-group-role-actor" {
+									fmt.Printf("   %s atlassian-group-role-actor: %s\n", arole.Name, actor.Name)
 
-							} else if actor.Type == "atlassian-user-role-actor" {
+								} else if actor.Type == "atlassian-user-role-actor" {
 
-								if _, ok := allUsers[actor.Name]; ok {
-									reader := bufio.NewReader(os.Stdin)
+									if _, ok := allUsers[actor.Name]; ok {
+										reader := bufio.NewReader(os.Stdin)
 
-									fmt.Printf("Already Member   %s atlassian-group-role-actor: %s\n", arole.Name, actor.Name)
+										fmt.Printf("Already Member   %s atlassian-group-role-actor: %s\n", arole.Name, actor.Name)
 
-									fmt.Printf("Remove user: %s from role: %s in project: %s ?\n", actor.Name, arole.Name, group.projectName)
+										fmt.Printf("Remove user: %s(%s) from role: %s in project: %s ?\n", actor.DisplayName, actor.Name, arole.Name, group.projectName)
 
-									fmt.Printf("Remove [y/n]: ")
+										fmt.Printf("Remove [y/n]: ")
 
-									response, err := reader.ReadString('\n')
-									if err != nil {
-										log.Fatal(err)
-									}
-
-									response = strings.ToLower(strings.TrimSpace(response))
-
-									if response == "y" || response == "yes" {
-
-										fmt.Printf("Removing user: %s to role: %s in project: %s ?\n", actor.Name, arole.Name, group.projectName)
-										_, _, err := jiraClient.Role.RemoveUserActorsForProjectRole(project.Key, projRole.ID, actor.Name)
-
+										response, err := reader.ReadString('\n')
 										if err != nil {
-											fmt.Printf("Failed to remove user. Group: %s status: %s \n", group.Group, actor.Name)
-
-										}
-									}
-
-								} else {
-
-									fmt.Printf("Move user: %s into group: %s in project: %s ?\n", actor.Name, group.Group, group.projectName)
-									reader := bufio.NewReader(os.Stdin)
-
-									fmt.Printf("Move [y/n]: ")
-
-									response, err := reader.ReadString('\n')
-									if err != nil {
-										log.Fatal(err)
-									}
-
-									response = strings.ToLower(strings.TrimSpace(response))
-
-									if response == "y" || response == "yes" {
-
-										safe := url.QueryEscape(group.Group)
-										fmt.Printf("Adding user: %s to role: %s in project: %s ?\n", actor.Name, arole.Name, group.projectName)
-										_, _, err = jiraClient.Group.Add(safe, actor.Name)
-										if err != nil {
-											fmt.Printf("Failed to remove user. Group: %s status: %s \n", group.Group, actor.Name)
-
+											log.Fatal(err)
 										}
 
-										fmt.Printf("Removing user: %s to role: %s in project: %s ?\n", actor.Name, arole.Name, group.projectName)
-										_, _, err = jiraClient.Role.RemoveUserActorsForProjectRole(project.Key, projRole.ID, actor.Name)
+										response = strings.ToLower(strings.TrimSpace(response))
 
+										if response == "y" || response == "yes" {
+
+											fmt.Printf("Removing user: %s(%s) to role: %s in project: %s ?\n", actor.DisplayName, actor.Name, arole.Name, group.projectName)
+											_, _, err := jiraClient.Role.RemoveUserActorsForProjectRole(project.Key, projRole.ID, actor.Name)
+
+											if err != nil {
+												fmt.Printf("Failed to remove user. Group: %s status: %s \n", group.Group, actor.Name)
+
+											}
+										}
+
+									} else {
+
+										fmt.Printf("Move user: %s(%s) into group: %s in project: %s ?\n", actor.DisplayName, actor.Name, group.Group, group.projectName)
+										reader := bufio.NewReader(os.Stdin)
+
+										fmt.Printf("Move [y/n]: ")
+
+										response, err := reader.ReadString('\n')
 										if err != nil {
-											fmt.Printf("Failed to add user. Group: %s status: %s \n", group.Group, actor.Name)
+											log.Fatal(err)
+										}
+
+										response = strings.ToLower(strings.TrimSpace(response))
+
+										if response == "y" || response == "yes" {
+
+											safe := url.QueryEscape(group.Group)
+											fmt.Printf("Adding user: %s to role: %s in project: %s ?\n", actor.Name, arole.Name, group.projectName)
+											_, _, err = jiraClient.Group.Add(safe, actor.Name)
+											if err != nil {
+												fmt.Printf("Failed to remove user. Group: %s status: %s \n", group.Group, actor.Name)
+
+											}
+
+											fmt.Printf("Removing user: %s to role: %s in project: %s ?\n", actor.Name, arole.Name, group.projectName)
+											_, _, err = jiraClient.Role.RemoveUserActorsForProjectRole(project.Key, projRole.ID, actor.Name)
+
+											if err != nil {
+												fmt.Printf("Failed to add user. Group: %s status: %s \n", group.Group, actor.Name)
+											}
 										}
 									}
-
 								}
-
 							}
 						}
 					}
 				}
+
 				// Loop through all Roles with Permissions
-				theprojPerm, _, _ := jiraClient.Project.GetProjectPermissions(project.Key)
+				theprojPerm, _, err := jiraClient.Project.GetProjectPermissions(project.Key)
+				excelutils.Check(err)
 
 				allRoles := make(map[string]string)
 
+				for _, arole := range *roles {
+					roleLookup[arole.ID] = arole.Name
+				}
+
 				for _, perm := range theprojPerm.Permissions {
+
+					fmt.Printf("Permission: %s role: %s \n", perm.Permission, perm.Holder.Type)
 
 					if perm.Holder.Type == "projectRole" {
 						allRoles[roleLookup[perm.Holder.Parameter]] = roleLookup[perm.Holder.Parameter]
@@ -223,10 +236,25 @@ func ProjectGroupConsolidator(propPtr string) {
 				}
 
 				for _, arole := range *roles {
-					if _, ok := allRoles[arole.ID]; ok {
-						fmt.Printf("Role: %s has a permission in scheme: %s \n", arole.Name, projPerm)
+					if _, ok := allRoles[arole.Name]; ok {
+						//					fmt.Printf("Role: %s has a permission in scheme: %s \n", arole.Name, projPerm)
 					} else {
 						fmt.Printf("Role: %s has no permissions in scheme: %s \n", arole.Name, projPerm)
+
+						projRole2, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
+						excelutils.Check(err)
+						fmt.Printf("   Role: %s\n", arole.Name)
+
+						for _, actor := range projRole2.Actors {
+
+							if actor.Type == "atlassian-group-role-actor" {
+								fmt.Printf("   %s atlassian-group-role-actor: %s\n", arole.Name, actor.Name)
+
+							} else if actor.Type == "atlassian-user-role-actor" {
+								fmt.Printf("   Actor: %s has a Role: %s without any permissions!\n", actor.DisplayName, arole.Name)
+
+							}
+						}
 					}
 				}
 			}

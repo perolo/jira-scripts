@@ -37,6 +37,7 @@ type Config struct {
 	AdGroup         string `properties:"adgroup"`
 	Localgroup      string `properties:"localgroup"`
 	File            string `properties:"file"`
+	Reset           bool   `properties:"reset"`
 	//	Reset            bool `properties:"reset"`
 	ConfUpload   bool   `properties:"confupload"`
 	ConfPage     string `properties:"confluencepage"`
@@ -142,6 +143,8 @@ func JiraSyncAdGroup(propPtr string) {
 		SyncGroupInTool(cfg, toolClient)
 	} else {
 		for _, syn := range GroupSyncs {
+			// If this is enabled the reports are partial
+			//			if schedulerutil.CheckScheduleDetail(fmt.Sprintf("JiraSyncAdGroup-%s", syn.LocalGroup), time.Hour*24, cfg.Reset, schedulerutil.DummyFunc, "jiracategory.properties") {
 			adCount := 0
 			groupCount := 0
 			if !syn.InJira && !syn.InConfluence {
@@ -160,10 +163,11 @@ func JiraSyncAdGroup(propPtr string) {
 					excelutils.SetCellBackground("#CCFFCC", 5, x)
 					excelutils.SetCellBackground("#CCFFCC", 6, x)
 				}
-				x = x + 1
 			} // Dirty Solution - find a better?
 		}
+		x = x + 1
 	}
+	//	}
 	err := endReport(cfg)
 	if err != nil {
 		panic(err)
