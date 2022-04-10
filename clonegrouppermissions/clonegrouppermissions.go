@@ -34,21 +34,29 @@ func main() {
 		log.Fatal(err)
 	}
 	var err error
-	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.JiraUser),
-		Password: strings.TrimSpace(cfg.JiraPass),
-		UseToken: cfg.UseToken,
+	var jiraClient *jira.Client
+	if cfg.UseToken {
+		tp := jira.BearerAuthTransport{
+			Token: strings.TrimSpace(cfg.JiraToken),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+	} else {
+		tp := jira.BasicAuthTransport{
+			Username: strings.TrimSpace(cfg.JiraUser),
+			Password: strings.TrimSpace(cfg.JiraPass),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 	}
 
-	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 	if err != nil {
 		fmt.Printf("\nerror: %v\n", err)
 		return
 	}
 	if cfg.UseToken {
-		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+		//jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+		//jiraClient.Authentication.
 	} else {
-		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
+		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass)
 	}
 
 	projects, _, err := jiraClient.Project.GetList()

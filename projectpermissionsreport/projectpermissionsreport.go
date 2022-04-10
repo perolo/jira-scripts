@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/magiconair/properties"
-	"github.com/perolo/confluence-prop/client"
+	"github.com/perolo/confluence-client/client"
 	"github.com/perolo/confluence-scripts/utilities"
 	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
@@ -151,7 +151,6 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	tp := jira.BasicAuthTransport{
 		Username: strings.TrimSpace(cfg.JiraUser),
 		Password: strings.TrimSpace(cfg.JiraPass),
-		UseToken: cfg.UseToken,
 	}
 
 	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))

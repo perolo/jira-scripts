@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/magiconair/properties"
-	"github.com/perolo/confluence-prop/client"
+	"github.com/perolo/confluence-client/client"
 	"github.com/perolo/confluence-scripts/utilities"
 	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
@@ -29,12 +29,9 @@ type ReportConfig struct {
 	UseToken        bool   `properties:"usetoken"`
 	ProjectCategory string `properties:"projectcategory"`
 	File            string `properties:"file"`
-	Simple          bool   `properties:"simple"`
-	Report          bool   `properties:"report"`
-	Archivedwf      string `properties:"archivedwf"`
-	//	RolesReport      bool   `properties:"rolesreport"`
-	//	ExpandGroups     bool   `properties:"expandgroups"`
-	//	PermissionReport bool   `properties:"permissionreport"`
+	//	Simple          bool   `properties:"simple"`
+	Report     bool   `properties:"report"`
+	Archivedwf string `properties:"archivedwf"`
 }
 
 type ProjectUserType struct {
@@ -69,18 +66,13 @@ func InactiveUserReport(propPtr string) {
 	} else {
 	}
 
-	if cfg.Simple {
-		cfg.File = fmt.Sprintf(cfg.File, "-"+"Inactive Users"+"-"+cfg.ProjectCategory)
+	reportBase := cfg.File
+	for _, category := range projectpermissionsreport.Categories {
+		cfg.ProjectCategory = category
+		//			cfg.File = fmt.Sprintf(reportBase, "-"+category)
+		cfg.File = fmt.Sprintf(reportBase, "-"+"Inactive Users"+"-"+cfg.ProjectCategory)
+		fmt.Printf("Category: %s \n", cfg.ProjectCategory)
 		CreateInactiveUsersReport(cfg)
-	} else {
-		reportBase := cfg.File
-		for _, category := range projectpermissionsreport.Categories {
-			cfg.ProjectCategory = category
-			//			cfg.File = fmt.Sprintf(reportBase, "-"+category)
-			cfg.File = fmt.Sprintf(reportBase, "-"+"Inactive Users"+"-"+cfg.ProjectCategory)
-			fmt.Printf("Category: %s \n", cfg.ProjectCategory)
-			CreateInactiveUsersReport(cfg)
-		}
 	}
 
 }
@@ -121,21 +113,28 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 	excelutils.WiteCellln("Created by: " + cfg.ConfUser + " : " + t.Format(time.RFC3339))
 	excelutils.WiteCellln("")
 
-	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.JiraUser),
-		Password: strings.TrimSpace(cfg.JiraPass),
-		UseToken: cfg.UseToken,
+	var jiraClient *jira.Client
+	var err error
+	if cfg.UseToken {
+		tp := jira.BearerAuthTransport{
+			Token: strings.TrimSpace(cfg.JiraToken),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+	} else {
+		tp := jira.BasicAuthTransport{
+			Username: strings.TrimSpace(cfg.JiraUser),
+			Password: strings.TrimSpace(cfg.JiraPass),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 	}
-
-	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 	if err != nil {
 		fmt.Printf("\nerror: %v\n", err)
 		return
 	}
 	if cfg.UseToken {
-		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+		//jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
 	} else {
-		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
+		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass)
 	}
 
 	excelutils.SetCellFontHeader2()

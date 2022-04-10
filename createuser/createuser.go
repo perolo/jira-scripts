@@ -1,20 +1,20 @@
 package createuser
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/magiconair/properties"
-	"github.com/perolo/ad-utils"
-	"github.com/perolo/confluence-prop/client"
+	"github.com/perolo/confluence-client/client"
 	"github.com/perolo/jira-client"
+	"github.com/perolo/myexcelize"
 	"io"
 	"log"
 	"net/http"
-	"os"
+	//adutils "sourcery.assaabloy.net/perolo/ad-utils"
+
+	//	adutils "sourcery.assaabloy.net/perolo/ad-utils"
 	"strings"
 )
 
@@ -37,12 +37,12 @@ type Config struct {
 	JIRA             bool   `properties:"jira"`
 	Confluence       bool   `properties:"confluence"`
 	//	Debug            bool   `properties:"debug"`
-	Simple       bool   `properties:"simple"`
-	File         string `properties:"file"`
-	CheckAD      bool   `properties:"checkad"`
-	Bindusername string `properties:"bindusername"`
-	Bindpassword string `properties:"bindpassword"`
-	BaseDN       string `properties:"basedn"`
+	Simple bool   `properties:"simple"`
+	File   string `properties:"file"`
+	//	CheckAD      bool   `properties:"checkad"`
+	//	Bindusername string `properties:"bindusername"`
+	//	Bindpassword string `properties:"bindpassword"`
+	//	BaseDN       string `properties:"basedn"`
 }
 
 //var propConfig Config
@@ -50,65 +50,64 @@ var confluenceConfig = client.ConfluenceConfig{}
 
 func CreateUser(propPtr string) {
 	var err error
-	var propConfig Config
+	var cfg Config
 	var confClient *client.ConfluenceClient
 	var jiraClient *jira.Client
 	flag.Parse()
 
 	p := properties.MustLoadFile(propPtr, properties.ISO_8859_1)
 
-	if err = p.Decode(&propConfig); err != nil {
+	if err = p.Decode(&cfg); err != nil {
 		log.Fatal(err)
 	}
 
 	// Start JIRA
-	if propConfig.JIRA {
-		tp := jira.BasicAuthTransport{
-			Username: strings.TrimSpace(propConfig.JiraUser),
-			Password: strings.TrimSpace(propConfig.JiraPass),
-			UseToken: propConfig.UseToken,
-		}
+	if cfg.JIRA {
 
-		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(propConfig.JiraHost))
-		if err != nil {
-			fmt.Printf("error: %v\n", err)
-			return
-		}
-		if propConfig.UseToken {
-			jiraClient.Authentication.SetTokenAuth(propConfig.JiraToken, propConfig.UseToken)
+		if cfg.UseToken {
+			tp := jira.BearerAuthTransport{
+				Token: strings.TrimSpace(cfg.JiraToken),
+			}
+			jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 		} else {
-			jiraClient.Authentication.SetBasicAuth(propConfig.JiraUser, propConfig.JiraPass, propConfig.UseToken)
+			tp := jira.BasicAuthTransport{
+				Username: strings.TrimSpace(cfg.JiraUser),
+				Password: strings.TrimSpace(cfg.JiraPass),
+			}
+			jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
 		}
 
-		fmt.Printf("User: %s\n", propConfig.NewUser)
+		fmt.Printf("User: %s\n", cfg.NewUser)
 
 	}
 
 	// Start Confluence
-	if propConfig.Confluence {
+	if cfg.Confluence {
 
-		confluenceConfig.Username = propConfig.ConfUser
-		confluenceConfig.Password = propConfig.ConfPass
-		confluenceConfig.UseToken = propConfig.UseToken
-		confluenceConfig.URL = propConfig.ConfHost
+		confluenceConfig.Username = cfg.ConfUser
+		confluenceConfig.Password = cfg.ConfPass
+		confluenceConfig.UseToken = cfg.UseToken
+		confluenceConfig.URL = cfg.ConfHost
 		//		confluenceConfig.Debug = propConfig.Debug
 
 		confClient = client.Client(&confluenceConfig)
 
 	}
-	//TODO Start AD
-	if propConfig.CheckAD {
-		adutils.InitAD(propConfig.Bindusername, propConfig.Bindpassword)
+	/* TODO Start AD
+	if cfg.CheckAD {
+		adutils.InitAD(cfg.Bindusername, cfg.Bindpassword)
 
 	}
-	if propConfig.Simple {
+
+	*/
+	if cfg.Simple {
 		// TODO Manual Check? OK confirm?
-		if doCreateUser(propConfig, err, confClient, jiraClient) {
+		if doCreateUser(cfg, err, confClient, jiraClient) {
 			return
 		}
 	} else {
 		var err error
-		fexcel, err := excelize.OpenFile(propConfig.File)
+		fexcel, err := myexcelize.OpenFile(cfg.File)
 		if err != nil {
 			fmt.Printf("Result: %v\n", err.Error())
 			return
@@ -117,51 +116,56 @@ func CreateUser(propPtr string) {
 		rows, err := fexcel.GetRows("Sheet1")
 
 		for _, row := range rows {
-			propConfig.NewUser = row[0]
-			propConfig.DisplayName = row[1]
-			propConfig.Email = row[2]
-			propConfig.PassWord = row[3]
-			fmt.Printf("NewUser: %v\n", propConfig.NewUser)
-			if doCreateUser(propConfig, err, confClient, jiraClient) {
+			cfg.NewUser = row[0]
+			cfg.DisplayName = row[1]
+			cfg.Email = row[2]
+			cfg.PassWord = row[3]
+			fmt.Printf("NewUser: %v\n", cfg.NewUser)
+			if doCreateUser(cfg, err, confClient, jiraClient) {
 				return
 			}
 		}
 	}
-	if propConfig.CheckAD {
-		adutils.CloseAD()
-	}
+	/*
+		if cfg.CheckAD {
+			adutils.CloseAD()
+		}
+
+	*/
 }
 
 func doCreateUser(propConfig Config, err error, confClient *client.ConfluenceClient, jiraClient *jira.Client) bool {
-	if propConfig.CheckAD {
-		aduser, err := adutils.GetActiveUserDN(propConfig.NewUser, propConfig.BaseDN)
-		if err != nil {
-			//			fmt.Printf("\nerror: %v\n", err)
-			fmt.Printf("User: %s not found in the Ad\n", propConfig.NewUser)
-			reader := bufio.NewReader(os.Stdin)
 
-			fmt.Printf("Create user anyway? [y/n]: ")
-
-			response, err := reader.ReadString('\n')
+	/*
+		if propConfig.CheckAD {
+			aduser, err := adutils.GetActiveUserDN(propConfig.NewUser, propConfig.BaseDN)
 			if err != nil {
-				log.Fatal(err)
-			}
+				//			fmt.Printf("\nerror: %v\n", err)
+				fmt.Printf("User: %s not found in the Ad\n", propConfig.NewUser)
+				reader := bufio.NewReader(os.Stdin)
 
-			response = strings.ToLower(strings.TrimSpace(response))
+				fmt.Printf("Create user anyway? [y/n]: ")
 
-			if response == "y" || response == "yes" {
-				fmt.Printf("Attempting to create user even if not available in AD: %s\n", propConfig.NewUser)
-				// do nothing continue
-				//return false
+				response, err := reader.ReadString('\n')
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				response = strings.ToLower(strings.TrimSpace(response))
+
+				if response == "y" || response == "yes" {
+					fmt.Printf("Attempting to create user even if not available in AD: %s\n", propConfig.NewUser)
+					// do nothing continue
+					//return false
+				} else {
+					fmt.Printf("Skipping to create user: %s\n", propConfig.NewUser)
+					return false
+				}
 			} else {
-				fmt.Printf("Skipping to create user: %s\n", propConfig.NewUser)
-				return false
+				fmt.Printf("User: %s found in the Ad: %s\n", aduser.Name, aduser.DN)
 			}
-		} else {
-			fmt.Printf("User: %s found in the Ad: %s\n", aduser.Name, aduser.DN)
 		}
-	}
-
+	*/
 	if propConfig.Confluence {
 		err = createConfluenceUser(confClient, propConfig)
 		if err != nil {
