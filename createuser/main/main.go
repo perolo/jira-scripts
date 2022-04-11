@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	propPtr := flag.String("prop", "../../createuser.properties", "a string")
+	propPtr := flag.String("prop", "../createuser.properties", "a string")
 	flag.Parse()
 	createuser.CreateUser(*propPtr)
 }

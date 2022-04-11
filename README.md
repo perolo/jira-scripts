@@ -3,7 +3,8 @@ Handy utilities for administration and maintenance of Jira
 The use of properties files is to enable automation with CI tool without "logging" passwords.
 
 ## Clone Group Permissions
-Confluence does not support renaming of groups.
+TBD - Still a fork from Jira, not workint"
+... does not support renaming of groups.
 This script clones the permissions of a group in all Spaces to a new group.
 
 
@@ -25,7 +26,8 @@ source=origingroupname
 destination=copygroupname
 ```
 ## Clone Issues
-Clone all issues found by jql. Create a issue link between them and add a label.
+Clone all issues found by JQL. Create a issue link between them and add a an optional label.
+Requires that all the issuetypes in the JQL are present in the distanation project. 
 
 #### Example of use
 All Requirements and tasks needed to implement for a standard may be defined in a jira project and 
@@ -73,7 +75,7 @@ Enables automation of user creation and adding of permissions without user loggi
   go run createuser.go -prop createuser.properties
   ```
 
-The parameters needed are defined in the createuser file:
+The parameters needed are defined in the createuser.properties file:
 ```
 jirahost=http://jira.com:8080
 user=adminuser

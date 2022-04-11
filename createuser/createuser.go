@@ -9,7 +9,6 @@ import (
 	"github.com/perolo/confluence-client/client"
 	"github.com/perolo/jira-client"
 	"github.com/perolo/myexcelize"
-	"io"
 	"log"
 	"net/http"
 	//adutils "sourcery.assaabloy.net/perolo/ad-utils"
@@ -69,12 +68,18 @@ func CreateUser(propPtr string) {
 				Token: strings.TrimSpace(cfg.JiraToken),
 			}
 			jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+			if err != nil {
+				log.Fatal(err)
+			}
 		} else {
 			tp := jira.BasicAuthTransport{
 				Username: strings.TrimSpace(cfg.JiraUser),
 				Password: strings.TrimSpace(cfg.JiraPass),
 			}
 			jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		fmt.Printf("User: %s\n", cfg.NewUser)
@@ -102,7 +107,7 @@ func CreateUser(propPtr string) {
 	*/
 	if cfg.Simple {
 		// TODO Manual Check? OK confirm?
-		if doCreateUser(cfg, err, confClient, jiraClient) {
+		if doCreateUser(cfg, confClient, jiraClient) {
 			return
 		}
 	} else {
@@ -114,6 +119,9 @@ func CreateUser(propPtr string) {
 		}
 
 		rows, err := fexcel.GetRows("Sheet1")
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		for _, row := range rows {
 			cfg.NewUser = row[0]
@@ -121,7 +129,7 @@ func CreateUser(propPtr string) {
 			cfg.Email = row[2]
 			cfg.PassWord = row[3]
 			fmt.Printf("NewUser: %v\n", cfg.NewUser)
-			if doCreateUser(cfg, err, confClient, jiraClient) {
+			if doCreateUser(cfg, confClient, jiraClient) {
 				return
 			}
 		}
@@ -134,7 +142,7 @@ func CreateUser(propPtr string) {
 	*/
 }
 
-func doCreateUser(propConfig Config, err error, confClient *client.ConfluenceClient, jiraClient *jira.Client) bool {
+func doCreateUser(propConfig Config, confClient *client.ConfluenceClient, jiraClient *jira.Client) bool {
 
 	/*
 		if propConfig.CheckAD {
@@ -167,14 +175,14 @@ func doCreateUser(propConfig Config, err error, confClient *client.ConfluenceCli
 		}
 	*/
 	if propConfig.Confluence {
-		err = createConfluenceUser(confClient, propConfig)
+		err := createConfluenceUser(confClient, propConfig)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			return true
 		}
 	}
 	if propConfig.JIRA {
-		err = createJiraUser(err, jiraClient, propConfig)
+		err := createJiraUser(jiraClient, propConfig)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			return true
@@ -189,8 +197,8 @@ func createConfluenceUser(confluence *client.ConfluenceClient, propConfig Config
 	addGroups := propConfig.ConfluenceGroups != ""
 	fmt.Printf("Checking if user exists in Confluence.\n")
 
-	cUser, cResp = confluence.GetUser(propConfig.NewUser)
-
+	cUser, cResp = confluence.GetUser(propConfig.NewUser) //nolint:bodyclose
+	defer jira.CleanupH(cResp)
 	if cResp.StatusCode == 200 {
 		fmt.Printf("User Already Exists in Confluence. %s\n", cUser.UserName)
 	} else {
@@ -202,16 +210,18 @@ func createConfluenceUser(confluence *client.ConfluenceClient, propConfig Config
 		nUser.Password = propConfig.PassWord
 		nUser.Email = propConfig.Email
 
-		resp2 := confluence.CreateUser(*nUser)
+		resp2 := confluence.CreateUser(*nUser) //nolint:bodyclose
+		defer jira.CleanupH(resp2)
 		if resp2.StatusCode == 200 {
+			var dResp *http.Response
 			fmt.Printf("User Created in Confluence. %s\n", nUser.UserName)
-			cUser, cResp = confluence.GetUser(nUser.UserName)
+			cUser, dResp = confluence.GetUser(nUser.UserName) //nolint:bodyclose
+			defer jira.CleanupH(dResp)
 			if addGroups {
 				addGroups = true
 			}
 		} else {
 			fmt.Printf("Failed Creating USer in Confluence. %s\n", cUser.UserName)
-			addGroups = false
 			return fmt.Errorf("user not found %s", cUser.UserName)
 		}
 
@@ -233,14 +243,16 @@ func createConfluenceUser(confluence *client.ConfluenceClient, propConfig Config
 	return nil
 }
 
-func createJiraUser(err error, jiraClient *jira.Client, propConfig Config) error {
+func createJiraUser(jiraClient *jira.Client, propConfig Config) error {
 	fmt.Printf("Checking if user exists in JIRA.\n")
 	var usr *jira.User
 	var resp *jira.Response
+	var err error
 	addGroups := propConfig.JIRAGroups != ""
 	usr, resp, err = jiraClient.User.Get(propConfig.NewUser)
 
-	if resp != nil && resp.StatusCode == 404 {
+	if err != nil && resp != nil && resp.StatusCode == 404 {
+		fmt.Printf("User not found in JIRA\n")
 		fmt.Printf("Attempting to Create user in JIRA\n")
 		user := new(jira.User)
 
@@ -250,9 +262,13 @@ func createJiraUser(err error, jiraClient *jira.Client, propConfig Config) error
 		user.EmailAddress = propConfig.Email
 		user.ApplicationKeys = []string{"jira-core"}
 
-		var buf io.ReadWriter
-		buf = new(bytes.Buffer)
+		//var buf io.ReadWriter
+		buf := new(bytes.Buffer)
 		err = json.NewEncoder(buf).Encode(user)
+		if err != nil {
+			fmt.Printf("\nerror: %v\n", err)
+			return err
+		}
 		fmt.Printf("json: %s\n", buf)
 
 		usr, resp, err = jiraClient.User.Create(user)
@@ -281,9 +297,9 @@ func createJiraUser(err error, jiraClient *jira.Client, propConfig Config) error
 		groups := strings.Split(propConfig.JIRAGroups, ",")
 		for _, group := range groups {
 			if usr != nil {
-				_, resg, err := jiraClient.Group.Add(group, usr.Name)
-				if err != nil {
-					fmt.Printf("error: %v\n", err)
+				_, resg, err2 := jiraClient.Group.Add(group, usr.Name)
+				if err2 != nil {
+					fmt.Printf("error: %v\n", err2)
 				} else {
 					if resg.StatusCode == 201 {
 						fmt.Printf("Added to group  %s \n", group)

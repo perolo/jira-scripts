@@ -19,8 +19,6 @@ github.com/perolo/confluence-scripts v0.0.0-20220410123137-44c7dac8ecf5 h1:sAT3O
 github.com/perolo/confluence-scripts v0.0.0-20220410123137-44c7dac8ecf5/go.mod h1:7X5pUadlYTHWSV6OfPvfxckSr/+F3UtLlFtGBN9MEPI=
 github.com/perolo/excel-utils v0.0.0-20220404123251-ae7963967236 h1:q+aSVOhEKXkE635/gq9vYW7BJk5gNDIE974z8vmi9Kw=
 github.com/perolo/excel-utils v0.0.0-20220404123251-ae7963967236/go.mod h1:fn3r3AS2Np7f52J8O/WhUUobsgCjuLZi+AlprqbJYRI=
-github.com/perolo/jira-client v0.0.0-20220410122149-d2c3be3e4688 h1:A4OXkasloNvk4BD/iPM1MOdW8nNNvN6pBlHmTYKfv00=
-github.com/perolo/jira-client v0.0.0-20220410122149-d2c3be3e4688/go.mod h1:/yREdu37n4JNI0KXST8PyWQjE46Iy/bB6EexMuj4pkk=
 github.com/perolo/myexcelize v1.4.2-0.20220404083812-f49112898c31 h1:+WdJfBjc7fZAB4qtMofZ4oI0BDV1YQ3cUqnKL5xu2Rw=
 github.com/perolo/myexcelize v1.4.2-0.20220404083812-f49112898c31/go.mod h1:/jHiB3YEJa8uRoHiEfocjtKRAR51C7/hlJYOs3BMq0c=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=

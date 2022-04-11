@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	propPtr := flag.String("prop", "jiracategory.properties", "a string")
+	propPtr := flag.String("prop", "../customfieldreport.properties", "a string")
 	flag.Parse()
 	customfieldreport.CustomFieldReport(*propPtr)
 

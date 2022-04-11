@@ -3,13 +3,10 @@ package customfieldreport
 import (
 	"fmt"
 	"github.com/magiconair/properties"
-	"github.com/perolo/confluence-client/client"
-	"github.com/perolo/confluence-scripts/utilities"
 	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
 	"github.com/perolo/jira-scripts/jirautils"
 	"log"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -17,76 +14,85 @@ import (
 var headers []string
 
 type customField struct {
-	reportType      string
-	project         string
-	id              string
+	reportType string
+	project    string
+	//	id              string
 	projCategory    string
 	projPerm        string
 	archivedProject bool
 	issueCount      int
 	issueUpdateDate time.Time
 	projCount       int
+	screensCount    int
 	customField     jira.CustomFieldsType
 }
 
 type Config struct {
-	JiraHost   string `properties:"jirahost"`
-	ConfHost   string `properties:"confhost"`
-	JiraUser   string `properties:"jirauser"`
-	ConfUser   string `properties:"confuser"`
-	ConfPass   string `properties:"confpass"`
-	JiraPass   string `properties:"jirapass"`
-	JiraToken  string `properties:"jiratoken"`
-	ConfToken  string `properties:"conftoken"`
-	UseToken   bool   `properties:"usetoken"`
-	Space      string `properties:"space"`
-	File       string `properties:"file"`
-	Attachment string `properties:"attachment"`
+	JiraHost     string `properties:"jirahost"`
+	ConfHost     string `properties:"confhost"`
+	JiraUser     string `properties:"jirauser"`
+	ConfUser     string `properties:"confuser"`
+	ConfPass     string `properties:"confpass"`
+	JiraPass     string `properties:"jirapass"`
+	JiraToken    string `properties:"jiratoken"`
+	ConfToken    string `properties:"conftoken"`
+	UseToken     bool   `properties:"usetoken"`
+	Upload       bool   `properties:"upload"`
+	Space        string `properties:"space"`
+	File         string `properties:"file"`
+	DeleteUnused bool   `properties:"deleteunused"`
+	//	Attachment string `properties:"attachment"`
 	Archivedwf string `properties:"archivedwf"`
 	//		Bindusername string `properties:"bindusername"`
 	//		Bindpassword string `properties:"bindpassword"`
 	//		BaseDN           string `properties:"basedn"`
 }
 
-func CustomFieldReport(propPtr string) {
+func CustomFieldReport(propPtr string) { //nolint:funlen, gocyclo
 
+	var jiraClient *jira.Client
+	var err error
 	fmt.Printf("%%%%%%%%%%  JIRA Custom Field Report %%%%%%%%%%%%%%\n")
 
 	p := properties.MustLoadFile(propPtr, properties.ISO_8859_1)
 
 	var cfg Config
-	if err := p.Decode(&cfg); err != nil {
-		log.Fatal(err)
+	if err2 := p.Decode(&cfg); err2 != nil {
+		log.Fatal(err2)
 	}
 	// Temporary workaround solution - need to find better?
 
 	allCustomFields := make(map[string]customField)
 	projectCustomFields := make(map[string]customField)
 	projectUsageFields := make(map[string]customField)
+	/*
+		var config = client.ConfluenceConfig{}
+		config.Username = cfg.ConfUser
+		config.Password = cfg.ConfPass
+		config.UseToken = cfg.UseToken
+		config.URL = cfg.ConfHost
 
-	var config = client.ConfluenceConfig{}
-	config.Username = cfg.ConfUser
-	config.Password = cfg.ConfPass
-	config.UseToken = cfg.UseToken
-	config.URL = cfg.ConfHost
-
-	confluence := client.Client(&config)
-
-	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.JiraUser),
-		Password: strings.TrimSpace(cfg.JiraPass),
-	}
-
-	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
-	if err != nil {
-		fmt.Printf("\nerror: %v\n", err)
-		return
-	}
+		confluence := client.Client(&config)
+	*/
 	if cfg.UseToken {
-		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+		tp := jira.BearerAuthTransport{
+			Token: strings.TrimSpace(cfg.JiraToken),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+		if err != nil {
+			log.Fatal(err)
+		}
 	} else {
-		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
+		tp := jira.BasicAuthTransport{
+			Username: strings.TrimSpace(cfg.JiraUser),
+			Password: strings.TrimSpace(cfg.JiraPass),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
+
 	//jiraClient.Debug = true
 	cont := true
 	start := 0
@@ -95,17 +101,13 @@ func CustomFieldReport(propPtr string) {
 	for cont {
 		projloop := 0
 		// Only searching 1 customfield at a time is a confirmed Jira bug  -
-		fields, _, err := jiraClient.Field.GetAllCustomFields(&jira.FieldOptions{StartAt: start, MaxResults: max})
-		jirautils.Check(err)
+		fields, _, err2 := jiraClient.Field.GetAllCustomFields(&jira.FieldOptions{StartAt: start, MaxResults: max})
+		jirautils.Check(err2)
 		for _, field := range fields.Values {
 			//limit++
-			fmt.Printf("CustomField: %s locked %t \n", field.Name, field.IsLocked)
+			fmt.Printf("CustomField: %s \n", field.Name)
 			var aField customField
 			aField.customField = field
-			if field.IsLocked {
-				fmt.Printf("CustomField: %s locked %t \n", field.Name, field.IsLocked)
-
-			}
 			if field.Name == "OTHER" {
 				fmt.Printf("CustomField: %s  \n", field.Name)
 			}
@@ -116,15 +118,29 @@ func CustomFieldReport(propPtr string) {
 				//fmt.Printf("CustomField: %s\n", field.Name)
 				aField.reportType = "Custom Field Global"
 
+				aField.screensCount = field.ScreensCount
 				jql := fmt.Sprintf("cf[%v] is not EMPTY ", field.NumericID)
-				issues, _, err := jiraClient.Issue.Search(jql, &jira.SearchOptions{StartAt: 0, MaxResults: 1})
-				if err != nil {
+				issues, _, err3 := jiraClient.Issue.Search(jql, &jira.SearchOptions{StartAt: 0, MaxResults: 1})
+				if err3 != nil {
 					break
 					//panic(err)
 				}
 				aField.issueCount = issues.Total
 				if issues.Total > 0 {
 					aField.issueUpdateDate = (time.Time)(issues.Issues[0].Fields.Updated)
+				} else {
+					if !field.IsLocked && field.Name != "Story Points" {
+						if cfg.DeleteUnused {
+							if jirautils.QueryUser(fmt.Sprintf("Remove CustomField?: %s [y/n]: ", field.Name)) {
+								//Not available in Server
+								_, _, err4 := jiraClient.Field.DeleteCustomField(field.ID)
+								if err4 != nil {
+									panic(err4)
+								}
+
+							}
+						}
+					}
 				}
 				if issues.Total > 0 {
 					projloop = 1
@@ -136,9 +152,9 @@ func CustomFieldReport(propPtr string) {
 						// Should be possible to optimize...
 						fmt.Printf("CustomField: %s Project: %s \n", field.Name, lastproj)
 						jql2 := fmt.Sprintf("cf[%v] is not EMPTY AND project in (\"%s\") ORDER BY updatedDate DESC", field.NumericID, lastproj)
-						issues2, _, err := jiraClient.Issue.Search(jql2, &jira.SearchOptions{StartAt: 0, MaxResults: 1})
-						if err != nil {
-							panic(err)
+						issues2, _, err4 := jiraClient.Issue.Search(jql2, &jira.SearchOptions{StartAt: 0, MaxResults: 1})
+						if err4 != nil {
+							panic(err4)
 						}
 						if (issues2.Total) == 0 {
 							// Something strange
@@ -154,9 +170,9 @@ func CustomFieldReport(propPtr string) {
 
 						}
 						jql3 := fmt.Sprintf("cf[%v] is not EMPTY AND project not in (%s)", field.NumericID, projects)
-						issues3, _, err := jiraClient.Issue.Search(jql3, &jira.SearchOptions{StartAt: 0, MaxResults: 1})
-						if err != nil {
-							panic(err)
+						issues3, _, err2 := jiraClient.Issue.Search(jql3, &jira.SearchOptions{StartAt: 0, MaxResults: 1})
+						if err2 != nil {
+							panic(err2)
 						}
 						if (issues3.Total) == 0 { //the last
 							//fmt.Printf("The Last: \n")
@@ -171,6 +187,31 @@ func CustomFieldReport(propPtr string) {
 				}
 				aField.projCount = projloop
 			} else {
+				jql := fmt.Sprintf("cf[%v] is not EMPTY ", field.NumericID)
+				issues, _, err2 := jiraClient.Issue.Search(jql, &jira.SearchOptions{StartAt: 0, MaxResults: 1})
+				if err2 != nil {
+					break
+					//panic(err)
+				}
+				aField.issueCount = issues.Total
+				if issues.Total > 0 {
+					aField.issueUpdateDate = (time.Time)(issues.Issues[0].Fields.Updated)
+				} else {
+					if !field.IsLocked {
+						if cfg.DeleteUnused {
+							if jirautils.QueryUser(fmt.Sprintf("Remove CustomField?: %s [y/n]: ", field.Name)) {
+								//Not available in Server
+								_, _, err3 := jiraClient.Field.DeleteCustomField(field.ID)
+								if err3 != nil {
+									panic(err3)
+								}
+
+							}
+						}
+					}
+				}
+				aField.projCount = field.ProjectsCount
+				aField.screensCount = field.ScreensCount
 				aField.reportType = "Custom Field Project"
 			}
 			allCustomFields[field.Name] = aField
@@ -231,10 +272,6 @@ func CustomFieldReport(propPtr string) {
 
 	file := fmt.Sprintf(cfg.File, "-Jira-CustomFieds")
 	//	defer os.Remove(f.Name())
-	var copt client.OperationOptions
-	copt.Title = "Jira Custom Field Report"
-	copt.SpaceKey = cfg.Space
-	copt.BodyOnly = true
 
 	excelutils.NewFile()
 	excelutils.SetCellFontHeader()
@@ -258,6 +295,7 @@ func CustomFieldReport(propPtr string) {
 	headers = append(headers, "Issue Count")
 	headers = append(headers, "Issue Update")
 	headers = append(headers, "Projects Count")
+	headers = append(headers, "Screens Count")
 	headers = append(headers, "Project")
 	headers = append(headers, "Category")
 	headers = append(headers, "Archived")
@@ -284,13 +322,20 @@ func CustomFieldReport(propPtr string) {
 	// Save xlsx file by the given path.
 	excelutils.SaveAs(file)
 
-	_, name := filepath.Split(file)
-	utilities.CheckPageExists(copt, confluence)
-	err = utilities.AddAttachmentAndUpload(confluence, copt, name, file, "Created by Custom Field Report")
-	if err != nil {
-		panic(err)
-	}
-
+	/*
+		if cfg.Upload {
+				var copt client.OperationOptions
+				copt.Title = "Jira Custom Field Report"
+				copt.SpaceKey = cfg.Space
+				copt.BodyOnly = true
+				_, name := filepath.Split(file)
+				utilities.CheckPageExists(copt, confluence)
+				err = utilities.AddAttachmentAndUpload(confluence, copt, name, file, "Created by Custom Field Report")
+				if err != nil {
+					panic(err)
+				}
+		}
+	*/
 }
 
 func writeLine(field customField) {
@@ -312,7 +357,7 @@ func writeLine(field customField) {
 	if time.Time.IsZero(field.issueUpdateDate) {
 		excelutils.WiteCellnc("")
 	} else {
-		excelutils.WiteCellnc(((time.Time)(field.issueUpdateDate)).Format("2006-01-02"))
+		excelutils.WiteCellnc((field.issueUpdateDate).Format("2006-01-02"))
 	}
 	if field.projCount != 0 {
 		excelutils.WiteCellnc(fmt.Sprintf("%v", field.projCount))

@@ -5,13 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/magiconair/properties"
-	"github.com/perolo/confluence-client/client"
-	"github.com/perolo/confluence-scripts/utilities"
 	"github.com/perolo/excel-utils"
 	"github.com/perolo/jira-client"
 	"github.com/perolo/jira-scripts/jirautils"
 	"log"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -27,6 +24,7 @@ type ReportConfig struct {
 	ConfToken        string `properties:"conftoken"`
 	UseToken         bool   `properties:"usetoken"`
 	ProjectCategory  string `properties:"projectcategory"`
+	ConfUpload       bool   `properties:"confupload"`
 	File             string `properties:"file"`
 	Simple           bool   `properties:"simple"`
 	Report           bool   `properties:"report"`
@@ -69,12 +67,6 @@ func ProjectPermissionsReport(propPtr string) {
 	if err := p.Decode(&cfg); err != nil {
 		log.Fatal(err)
 	}
-	if cfg.UseToken {
-		cfg.ConfPass = cfg.ConfToken
-		cfg.JiraPass = cfg.JiraToken
-	} else {
-	}
-
 	if cfg.Simple {
 		cfg.File = fmt.Sprintf(cfg.File, "-"+cfg.ProjectCategory)
 		CreateProjectPermissionsReport(cfg)
@@ -134,7 +126,9 @@ func addUser(project jira.ProjectType, projLead string, projRole string, name st
 
 }
 
-func CreateProjectPermissionsReport(cfg ReportConfig) {
+func CreateProjectPermissionsReport(cfg ReportConfig) { //nolint:funlen
+	var jiraClient *jira.Client
+	var err error
 
 	allProjectUsers = make(map[string]ProjectUserType)
 
@@ -148,20 +142,23 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	excelutils.WiteCellln("Created by: " + cfg.ConfUser + " : " + t.Format(time.RFC3339))
 	excelutils.WiteCellln("")
 
-	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.JiraUser),
-		Password: strings.TrimSpace(cfg.JiraPass),
-	}
-
-	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
-	if err != nil {
-		fmt.Printf("\nerror: %v\n", err)
-		return
-	}
 	if cfg.UseToken {
-		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+		tp := jira.BearerAuthTransport{
+			Token: strings.TrimSpace(cfg.JiraToken),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+		if err != nil {
+			log.Fatal(err)
+		}
 	} else {
-		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
+		tp := jira.BasicAuthTransport{
+			Username: strings.TrimSpace(cfg.JiraUser),
+			Password: strings.TrimSpace(cfg.JiraPass),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	excelutils.SetCellFontHeader2()
@@ -289,7 +286,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 						start := 0
 						max := 50
 						for cont {
-							members, _, err := jiraClient.Group.SearchPermissionsWithOptionsWithContext(context.Background(), perm, &jira.PermissionSearchOptions{StartAt: start, MaxResults: max, ProjectKey: project.Key, Permissions: perm})
+							members, _, err := jiraClient.Group.SearchPermissionsWithOptionsWithContext(context.Background(), &jira.PermissionSearchOptions{StartAt: start, MaxResults: max, ProjectKey: project.Key, Permissions: perm})
 							excelutils.Check(err)
 							if members != nil {
 								for _, mem := range *members {
@@ -335,22 +332,26 @@ func CreateProjectPermissionsReport(cfg ReportConfig) {
 	//	excelutils.SetColWidth("E", "R", 5)
 	// Save xlsx file by the given path.
 	excelutils.SaveAs(cfg.File)
-	if cfg.Report {
-		var config = client.ConfluenceConfig{}
-		var copt client.OperationOptions
-		config.Username = cfg.ConfUser
-		config.Password = cfg.ConfPass
-		config.UseToken = cfg.UseToken
-		config.URL = cfg.ConfHost
-		config.Debug = false
-		confluenceClient := client.Client(&config)
-
-		copt.Title = "Project Permissions Reports"
-		copt.SpaceKey = "AAAD"
-		_, name := filepath.Split(cfg.File)
-		err = utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Project Permissions Report")
-		if err != nil {
-			panic(err)
+	/*
+		if cfg.ConfUpload {
+			if cfg.Report {
+				var config = client.ConfluenceConfig{}
+				config.Username = cfg.ConfUser
+				config.Password = cfg.ConfPass
+				config.UseToken = cfg.UseToken
+				config.URL = cfg.ConfHost
+				config.Debug = false
+				confluenceClient := client.Client(&config)
+				var copt client.OperationOptions
+				copt.Title = "Project Permissions Reports"
+				copt.SpaceKey = "AAAD"
+				_, name := filepath.Split(cfg.File)
+				err = utilities.AddAttachmentAndUpload(confluenceClient, copt, name, cfg.File, "Created by Project Permissions Report")
+				if err != nil {
+					panic(err)
+				}
+			}
 		}
-	}
+
+	*/
 }
