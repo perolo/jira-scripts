@@ -372,6 +372,7 @@ func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]
 			}
 		}
 		for _, member := range groupMembers {
+
 			if _, ok := groupMemberNames[member.Name]; !ok {
 				var newUser adutils.ADUser
 				newUser.Uname = member.Name
@@ -394,7 +395,7 @@ type UpdateResponse struct {
 }
 
 func DeactivateUser(jiraClient *jira.Client, user string) (*UpdateResponse, *jira.Response, error) {
-	log.Fatal(fmt.Sprintf("Implementation lost! %s %s ", jiraClient.GetBaseURL().Host, user))
+	log.Fatalf("Implementation lost! %s %s ", jiraClient.GetBaseURL().Host, user)
 	return nil, nil, nil
 }
 
@@ -418,6 +419,7 @@ func DeactivateUser(jiraClient *jira.Client, user string) (*jira.UpdateResponse,
 var deactCounter = 0
 
 func TryDeactivateUserJira(basedn string, client *jira.Client, deactuser string) {
+	var err error
 	deactUser, _, err := client.User.Get(deactuser)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())

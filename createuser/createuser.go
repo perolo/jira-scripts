@@ -235,7 +235,7 @@ func createConfluenceUser(confluence *client.ConfluenceClient, propConfig Config
 			if addUser.Status == "success" {
 				fmt.Printf("Message: %s. User: %s added to %s \n", addUser.Message, users, group)
 			} else {
-				return fmt.Errorf("failed to add user %s to group %s\n", cUser.UserName, group)
+				return fmt.Errorf("failed to add user %s to group %s", cUser.UserName, group)
 			}
 		}
 
