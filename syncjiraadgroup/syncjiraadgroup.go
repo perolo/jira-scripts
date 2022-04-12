@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/magiconair/properties"
+	adutils "github.com/perolo/ad-utils"
 	"github.com/perolo/confluence-client/client"
 	"github.com/perolo/confluence-scripts/utilities"
 	"github.com/perolo/excel-utils"
@@ -18,7 +19,7 @@ import (
 )
 
 type Config struct {
-	Host            string `properties:"jirahost"`
+	JiraHost        string `properties:"jirahost"`
 	ConfHost        string `properties:"confhost"`
 	JiraUser        string `properties:"jirauser"`
 	ConfUser        string `properties:"confuser"`
@@ -175,19 +176,28 @@ func JiraSyncAdGroup(propPtr string) {
 }
 
 func toollogin(cfg Config) *jira.Client {
-	tp := jira.BasicAuthTransport{
-		Username: strings.TrimSpace(cfg.JiraUser),
-		Password: strings.TrimSpace(cfg.JiraPass),
-		UseToken: cfg.UseToken,
-	}
-	jiraClient, err := jira.NewClient(tp.Client(), strings.TrimSpace(cfg.Host))
+	var jiraClient *jira.Client
+	var err error
 
-	//jiraClient.Debug = true
 	if cfg.UseToken {
-		jiraClient.Authentication.SetTokenAuth(cfg.JiraToken, cfg.UseToken)
+		tp := jira.BearerAuthTransport{
+			Token: strings.TrimSpace(cfg.JiraToken),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+		if err != nil {
+			log.Fatal(err)
+		}
 	} else {
-		jiraClient.Authentication.SetBasicAuth(cfg.JiraUser, cfg.JiraPass, cfg.UseToken)
+		tp := jira.BasicAuthTransport{
+			Username: strings.TrimSpace(cfg.JiraUser),
+			Password: strings.TrimSpace(cfg.JiraPass),
+		}
+		jiraClient, err = jira.NewClient(tp.Client(), strings.TrimSpace(cfg.JiraHost))
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
+
 	if err != nil {
 		fmt.Printf("\nerror: %v\n", err)
 		return nil
@@ -377,6 +387,18 @@ func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]
 	return groupMemberNames
 }
 
+type UpdateResponse struct {
+	Name string
+}
+
+func DeactivateUser(jiraClient *jira.Client, user string) (*UpdateResponse, *jira.Response, error) {
+	log.Fatal("Implementation lost!")
+	return nil, nil, nil
+}
+
+/*
+//TODO Investigate what happened to Update?
+
 func DeactivateUser(jiraClient *jira.Client, user string) (*jira.UpdateResponse, *jira.Response, error) {
 	i := make(map[string]interface{})
 	i["active"] = false
@@ -390,7 +412,7 @@ func DeactivateUser(jiraClient *jira.Client, user string) (*jira.UpdateResponse,
 	}
 	return uresp, resp, err
 }
-
+*/
 var deactCounter = 0
 
 func TryDeactivateUserJira(basedn string, client *jira.Client, deactuser string) {

@@ -11,9 +11,9 @@ import (
 	"github.com/perolo/myexcelize"
 	"log"
 	"net/http"
-	//adutils "sourcery.assaabloy.net/perolo/ad-utils"
+	//adutils "github.com/perolo/ad-utils"
 
-	//	adutils "sourcery.assaabloy.net/perolo/ad-utils"
+	//	adutils "github.com/perolo/ad-utils"
 	"strings"
 )
 

@@ -13,12 +13,16 @@ github.com/magiconair/properties v1.8.6 h1:5ibWZ6iY0NctNGWo87LalDlEZ6R41TqbbDamh
 github.com/magiconair/properties v1.8.6/go.mod h1:y3VJvCyxH9uVvJTWEGAELF3aiYNyPKd5NZ3oSwXrF60=
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 h1:RWengNIwukTxcDr9M+97sNutRR1RKhG96O6jWumTTnw=
 github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826/go.mod h1:TaXosZuwdSHYgviHp1DAtfrULt5eUgsSMsZf+YrPgl8=
+github.com/perolo/ad-utils v0.0.0-20210823072339-3f4647486e9e h1:MV1mIDLzqLr+A4OB3aN+Fdn5I+xT5ELNUVILfB8wGIE=
+github.com/perolo/ad-utils v0.0.0-20210823072339-3f4647486e9e/go.mod h1:dBXojBpqwYnZvReizdG0+mXPhHT9q9wxHYhsvjbPjHs=
 github.com/perolo/confluence-client v0.0.0-20220408191902-81a41e5cb047 h1:gOlfmq5h/Fu6KFqx1Hwdjs/Zwu8yfasKfeTFgrZPyzc=
 github.com/perolo/confluence-client v0.0.0-20220408191902-81a41e5cb047/go.mod h1:guc/tykEIQ9iuQNfa8j6v9iMGBgHpFCUfkdjL/p2hpA=
-github.com/perolo/confluence-scripts v0.0.0-20220410123137-44c7dac8ecf5 h1:sAT3OR08n3kBaG4olVTXSpeSJnOZVDEp5aoDnFN7ScM=
-github.com/perolo/confluence-scripts v0.0.0-20220410123137-44c7dac8ecf5/go.mod h1:7X5pUadlYTHWSV6OfPvfxckSr/+F3UtLlFtGBN9MEPI=
+github.com/perolo/confluence-scripts v0.0.0-20220412080954-25f864854e75 h1:pLcERjMrrdE5P96bU4KpN7105RJalVUA+XBcdQX/rGY=
+github.com/perolo/confluence-scripts v0.0.0-20220412080954-25f864854e75/go.mod h1:wr54R6qrmClMX0tZ7lVWVMRy1VlT3nsWHER70+WAFN8=
 github.com/perolo/excel-utils v0.0.0-20220404123251-ae7963967236 h1:q+aSVOhEKXkE635/gq9vYW7BJk5gNDIE974z8vmi9Kw=
 github.com/perolo/excel-utils v0.0.0-20220404123251-ae7963967236/go.mod h1:fn3r3AS2Np7f52J8O/WhUUobsgCjuLZi+AlprqbJYRI=
+github.com/perolo/jira-client v0.0.0-20220412082222-171c2656a1ab h1:Rmj+Veabrk7HI6u7KCQeTFCccdqZR1opqzSe0IeYbak=
+github.com/perolo/jira-client v0.0.0-20220412082222-171c2656a1ab/go.mod h1:/yREdu37n4JNI0KXST8PyWQjE46Iy/bB6EexMuj4pkk=
 github.com/perolo/myexcelize v1.4.2-0.20220404083812-f49112898c31 h1:+WdJfBjc7fZAB4qtMofZ4oI0BDV1YQ3cUqnKL5xu2Rw=
 github.com/perolo/myexcelize v1.4.2-0.20220404083812-f49112898c31/go.mod h1:/jHiB3YEJa8uRoHiEfocjtKRAR51C7/hlJYOs3BMq0c=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
@@ -43,4 +47,8 @@ golang.org/x/net v0.0.0-20220407224826-aac1ed45d8e3/go.mod h1:CfG3xpIq0wQ8r1q4Su
 golang.org/x/text v0.3.7 h1:olpwvP2KacW1ZWvsR7uQhoyTYvKAupfQrRGBFM352Gk=
 golang.org/x/text v0.3.7/go.mod h1:u+2+/6zg+i71rQMx5EYifcz6MCKuco9NR6JIITiCfzQ=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d h1:TxyelI5cVkbREznMhfzycHdkp5cLA7DpE+GKjSslYhM=
+gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d/go.mod h1:cuepJuh7vyXfUyUwEgHQXw849cJrilpS5NeIjOWESAw=
+gopkg.in/ldap.v2 v2.5.1 h1:wiu0okdNfjlBzg6UWvd1Hn8Y+Ux17/u/4nlk4CQr6tU=
+gopkg.in/ldap.v2 v2.5.1/go.mod h1:oI0cpe/D7HRtBQl8aTg+ZmzFUAvu4lsv3eLXMLGFxWk=
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c h1:dUUwHk2QECo/6vqA44rthZ8ie2QXMNeKRTHCNY2nXvo=

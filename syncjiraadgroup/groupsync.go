@@ -1,6 +1,6 @@
 package syncjiraadgroup
 
-//import "sourcery.assaabloy.net/perolo/jira-utils/shared"
+//import "github.com/perolo/jira-utils/shared"
 
 //import "git.aa.st/perolo/jira-utils/shared"
 
@@ -8,8 +8,13 @@ package syncjiraadgroup
 //var GroupSyncs = shared.GroupSyncs
 
 type GroupSyncType struct {
-	AdGroup    string
-	LocalGroup string
+	AdGroup      string
+	LocalGroup   string
+	DoAdd        bool
+	DoRemove     bool
+	InJira       bool
+	InConfluence bool
+	AutoDisable  bool
 }
 
 var GroupSyncs = []GroupSyncType{
