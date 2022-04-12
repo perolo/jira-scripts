@@ -20,7 +20,7 @@ func GetPermissionScheme(jiraClient *jira.Client, project jira.ProjectType) (str
 
 func QueryUser(que string) bool {
 
-	fmt.Printf(que)
+	fmt.Print(que)
 	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
 	if err != nil {

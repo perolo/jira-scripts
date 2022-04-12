@@ -63,7 +63,6 @@ func InactiveUserReport(propPtr string) {
 	if cfg.UseToken {
 		cfg.ConfPass = cfg.ConfToken
 		cfg.JiraPass = cfg.JiraToken
-	} else {
 	}
 
 	reportBase := cfg.File
@@ -99,7 +98,7 @@ func addUser(name string, dispName string, projetcname string, active bool) {
 
 }
 
-func CreateInactiveUsersReport(cfg ReportConfig) {
+func CreateInactiveUsersReport(cfg ReportConfig) { //nolint:funlen
 
 	allProjectUsers = make(map[string]ProjectUserType)
 
@@ -202,12 +201,12 @@ func CreateInactiveUsersReport(cfg ReportConfig) {
 			if closedDown {
 				fmt.Printf("   Skipping project due to Permission Scheme\n")
 			} else {
-				roles, _, err := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
-				jirautils.Check(err)
+				roles, _, err2 := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
+				jirautils.Check(err2)
 				for _, arole := range *roles {
-					//projRole, _, err := jiraClient.User.GetProjectRole(arole)
-					projRole, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
-					jirautils.Check(err)
+					//projRole, _, err2 := jiraClient.User.GetProjectRole(arole)
+					projRole, _, err3 := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
+					jirautils.Check(err3)
 					fmt.Printf("   Role: %s\n", arole.Name)
 
 					for _, actor := range projRole.Actors {

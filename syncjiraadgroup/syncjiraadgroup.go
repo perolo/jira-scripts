@@ -132,7 +132,6 @@ func JiraSyncAdGroup(propPtr string) {
 	if cfg.UseToken {
 		cfg.ConfPass = cfg.ConfToken
 		cfg.JiraPass = cfg.JiraToken
-	} else {
 	}
 
 	toolClient := toollogin(cfg)
@@ -164,8 +163,8 @@ func JiraSyncAdGroup(propPtr string) {
 					excelutils.SetCellBackground("#CCFFCC", 6, x)
 				}
 			} // Dirty Solution - find a better?
+			x++
 		}
-		x = x + 1
 	}
 	//	}
 	err := endReport(cfg)
@@ -205,7 +204,7 @@ func toollogin(cfg Config) *jira.Client {
 	return jiraClient
 }
 
-func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount int) {
+func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount int) { //nolint:funlen,gocyclo
 	var toolGroupMemberNames map[string]adutils.ADUser
 	fmt.Printf("\n")
 	fmt.Printf("SyncGroup Jira AdGroup: %s LocalGroup: %s \n", cfg.AdGroup, cfg.Localgroup)
@@ -283,7 +282,7 @@ func SyncGroupInTool(cfg Config, client *jira.Client) (adcount int, localcount i
 							nad.Mail = udn.Mail
 							nad.Name = udn.Name
 							nad.Err = "Deactivated"
-							if cfg.AutoDisable == true {
+							if cfg.AutoDisable {
 								TryDeactivateUserJira(cfg.BaseDN, client, nad.Uname)
 							}
 						} else {
@@ -359,10 +358,13 @@ func getUnamesInToolGroup(theClient *jira.Client, localgroup string) map[string]
 		groupMembers, resp, err := theClient.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max, IncludeInactiveUsers: false})
 		if err != nil {
 			if resp.StatusCode == 404 { // group not found?
-				theClient.Group.AddGroup(localgroup)
-				groupMembers, resp, err = theClient.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max, IncludeInactiveUsers: false})
-				if err != nil {
-					panic(err)
+				_, _, err2 := theClient.Group.AddGroup(localgroup)
+				if err2 != nil {
+					panic(err2)
+				}
+				_, _, err2 = theClient.Group.GetWithOptions(localgroup, &jira.GroupSearchOptions{StartAt: start, MaxResults: max, IncludeInactiveUsers: false})
+				if err2 != nil {
+					panic(err2)
 				}
 
 			} else {
@@ -392,7 +394,7 @@ type UpdateResponse struct {
 }
 
 func DeactivateUser(jiraClient *jira.Client, user string) (*UpdateResponse, *jira.Response, error) {
-	log.Fatal("Implementation lost!")
+	log.Fatal(fmt.Sprintf("Implementation lost! %s %s ", jiraClient.GetBaseURL().Host, user))
 	return nil, nil, nil
 }
 
@@ -420,7 +422,7 @@ func TryDeactivateUserJira(basedn string, client *jira.Client, deactuser string)
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	} else {
-		if deactUser.Active == true {
+		if deactUser.Active {
 			uresp, resp2, err := DeactivateUser(client, deactuser)
 			deactCounter++
 			if deactCounter > 10 {
@@ -445,7 +447,7 @@ func TryDeactivateUserJira(basedn string, client *jira.Client, deactuser string)
 					fmt.Printf("uresp.Name: %v\n", resp3.StatusCode)
 				}
 				if err == nil {
-					if deactUser2.Active == false {
+					if !deactUser2.Active {
 						fmt.Printf("deactUser: %s\n", deactUser2.Name)
 						fmt.Printf("deactUser Active: %t\n", deactUser2.Active)
 						fmt.Printf("respcode: %v\n", resp3.StatusCode)
