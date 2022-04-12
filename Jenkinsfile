@@ -53,11 +53,23 @@ pipeline {
                 script {
                     if (fileExists('report.xml')) {
                         archiveArtifacts artifacts: 'report.xml', fingerprint: true
-                        junit 'report.xml'
+                        try {
+                            junit 'report.xml'
+                        } catch (err) {
+                            echo err.getMessage()
+                            echo "Error detected, but we will continue."
+                            echo "No lint errors found is not an error."
+                        }
                     }
                     if (fileExists('coverage.xml')) {
-                        archiveArtifacts artifacts: 'coverage.xml', fingerprint: true
-                        cobertura coberturaReportFile: 'coverage.xml'
+                        try {
+                            archiveArtifacts artifacts: 'coverage.xml', fingerprint: true
+                            cobertura coberturaReportFile: 'coverage.xml'
+                        } catch (err) {
+                            echo err.getMessage()
+                            echo "Error detected, but we will continue."
+                            echo "No lint errors found is not an error."
+                        }
                     }
                     if (fileExists('golangci-lint.xml')) {
                         archiveArtifacts artifacts: 'golangci-lint.xml'            
