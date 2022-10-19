@@ -28,6 +28,7 @@ const (
 	ACTION
 	SUPPORTISSUE
 	RISK
+	TEST
 	LINK
 	MONTHS3
 	MONTHS1
@@ -51,7 +52,7 @@ func ProjectCategoryReport(propPtr string) {
 
 func ProjectReportCategory(propPtr, category string) {
 
-	fmt.Printf("%%%%%%%%%%  ProjectReportCategory " + category + "%%%%%%%%%%%%%%\n")
+	fmt.Printf("%%%%%%%%%%  ProjectReport Category: " + category + "%%%%%%%%%%%%%%\n")
 
 	p := properties.MustLoadFile(propPtr, properties.ISO_8859_1)
 
@@ -91,7 +92,10 @@ func ProjectReportCategory(propPtr, category string) {
 	headers[ACTION] = "Action"
 	headers[SUPPORTISSUE] = "Support"
 	headers[RISK] = "Risk"
+	headers[TEST] = "Test"
 	headers[LINK] = "Link"
+	headers[MONTHS1] = "Updated 30 days"
+	headers[MONTHS3] = "Updated 90 days"
 	headers[TIME] = "Last Updated"
 	allProjects := make(map[string]aProject)
 
@@ -190,6 +194,7 @@ func ProjectReportCategory(propPtr, category string) {
 				theProject.value[ACTION] = allFail
 				theProject.value[SUPPORTISSUE] = allFail
 				theProject.value[RISK] = allFail
+				theProject.value[TEST] = allFail
 				for _, issType := range detailProj.IssueTypes {
 					switch issType.Name {
 					case "Requirement":
@@ -200,7 +205,8 @@ func ProjectReportCategory(propPtr, category string) {
 						theProject.value[SUPPORTISSUE] = allOk
 					case "Risk":
 						theProject.value[RISK] = allOk
-
+					case "Test":
+						theProject.value[TEST] = allOk
 					}
 				}
 				// priorityscheme
