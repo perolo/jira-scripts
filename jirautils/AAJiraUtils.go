@@ -2,9 +2,9 @@ package jirautils
 
 import (
 	"fmt"
-	"github.com/perolo/excel-utils"
-	"github.com/perolo/jira-client"
 	"strings"
+
+	"github.com/perolo/jira-client"
 )
 
 func Check(e error) {
@@ -213,8 +213,14 @@ func SetNewEmail(jiraClient *jira.Client, issue jira.Issue, email string) error 
 func GetPermissionScheme(jiraClient *jira.Client, projectKey string, archivedwf string) (string, bool) {
 	// Permission Scheme
 	workflows := strings.Split(archivedwf, ",")
-	projPerm, _, err2 := jiraClient.Project.GetPermissionScheme(projectKey)
-	excelutils.Check(err2)
+	projPerm, resp, err2 := jiraClient.Project.GetPermissionScheme(projectKey)
+	if err2 != nil {
+		if resp.StatusCode == 403 {
+			return "403: Not enough permissions", false
+		} else {
+			panic(err2)
+		}
+	}
 	closedDown := false
 	for _, wf := range workflows {
 		closedDown = closedDown || projPerm.Name == wf

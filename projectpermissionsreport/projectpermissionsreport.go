@@ -4,13 +4,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/magiconair/properties"
-	"github.com/perolo/excel-utils"
-	"github.com/perolo/jira-client"
-	"github.com/perolo/jira-scripts/jirautils"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/magiconair/properties"
+	excelutils "github.com/perolo/excel-utils"
+	"github.com/perolo/jira-client"
+	"github.com/perolo/jira-scripts/jirautils"
 )
 
 type ReportConfig struct {
@@ -80,7 +81,11 @@ func ProjectPermissionsReport(propPtr string) {
 		*/
 		for _, category := range Categories {
 			cfg.ProjectCategory = category
-			cfg.File = fmt.Sprintf(reportBase, "-"+category)
+			if category == "" {
+				cfg.File = fmt.Sprintf(reportBase, "-all")
+			} else {
+				cfg.File = fmt.Sprintf(reportBase, "-"+category)
+			}
 			fmt.Printf("Category: %s \n", category)
 			CreateProjectPermissionsReport(cfg)
 		}
@@ -215,7 +220,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) { //nolint:funlen
 	excelutils.NextCol()
 
 	excelutils.NextLine()
-
+	jiraClient.Debug = false
 	projects, _, err := jiraClient.Project.GetList()
 	excelutils.Check(err)
 	for _, project := range *projects {
@@ -230,50 +235,54 @@ func CreateProjectPermissionsReport(cfg ReportConfig) { //nolint:funlen
 				p, _, _ := jiraClient.Project.Get(project.ID)
 				if cfg.RolesReport {
 					roles, _, err := jiraClient.Role.GetRolesForProjectWithContext(context.Background(), project.Key)
-					excelutils.Check(err)
-					for _, arole := range *roles {
-						//projRole, _, err := jiraClient.User.GetProjectRole(arole)
-						projRole, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
-						excelutils.Check(err)
-						fmt.Printf("   Role: %s\n", arole.Name)
+					if err == nil {
+						for _, arole := range *roles {
+							//projRole, _, err := jiraClient.User.GetProjectRole(arole)
+							projRole, _, err := jiraClient.Role.GetActorsForProjectRoleWithContext(context.Background(), project.Key, arole.ID)
+							excelutils.Check(err)
+							fmt.Printf("   Role: %s\n", arole.Name)
 
-						for _, actor := range projRole.Actors {
+							for _, actor := range projRole.Actors {
 
-							fmt.Printf("    Actor: %s\n", actor.Name)
-							if actor.Name == "c-johlan" {
-								fmt.Printf("   What?: %v\n", actor.Name)
-							}
-							if actor.Type == "atlassian-group-role-actor" {
-
-								if cfg.ExpandGroups {
-
-									cont := true
-									start := 0
-									max := 50
-									for cont {
-
-										//members, _, _, _ := jiraClient.Group.GetUsersFromGroup(safe, &jira.GroupOptions{StartAt: start, MaxResults: max})
-										members, _, err := jiraClient.Group.GetWithOptionsWithContext(context.Background(), actor.Name, &jira.GroupSearchOptions{StartAt: start, MaxResults: max})
-										excelutils.Check(err)
-										for _, member := range members {
-											addUser(project, p.Lead.Name, projRole.Name, member.Name, member.DisplayName, actor.Name, projPerm, false, false, false, false)
-										}
-										if len(members) != max {
-											cont = false
-										} else {
-											start = start + max
-										}
-									}
-								} else {
-									addUser(project, p.Lead.Name, projRole.Name, actor.Name, actor.DisplayName, "group", projPerm, false, false, false, false)
+								fmt.Printf("    Actor: %s\n", actor.Name)
+								if actor.Name == "c-johlan" {
+									fmt.Printf("   What?: %v\n", actor.Name)
 								}
-							} else if actor.Type == "atlassian-user-role-actor" {
+								if actor.Type == "atlassian-group-role-actor" {
 
-								addUser(project, p.Lead.Name, projRole.Name, actor.Name, actor.DisplayName, "user", projPerm, false, false, false, false)
-								//addUser(project, projRole, member.Name, member.DisplayName, actor.Name, allProjectUsers, member.EmailAddress)
-							} else {
-								// QUE???
-								excelutils.Check(nil)
+									if cfg.ExpandGroups {
+
+										cont := true
+										start := 0
+										max := 50
+										for cont {
+
+											//members, _, _, _ := jiraClient.Group.GetUsersFromGroup(safe, &jira.GroupOptions{StartAt: start, MaxResults: max})
+											members, _, err := jiraClient.Group.GetWithOptionsWithContext(context.Background(), actor.Name, &jira.GroupSearchOptions{StartAt: start, MaxResults: max})
+											if err == nil {
+												for _, member := range members {
+													addUser(project, p.Lead.Name, projRole.Name, member.Name, member.DisplayName, actor.Name, projPerm, false, false, false, false)
+												}
+												if len(members) != max {
+													cont = false
+												} else {
+													start = start + max
+												}
+											} else {
+												cont = false
+											}
+										}
+									} else {
+										addUser(project, p.Lead.Name, projRole.Name, actor.Name, actor.DisplayName, "group", projPerm, false, false, false, false)
+									}
+								} else if actor.Type == "atlassian-user-role-actor" {
+
+									addUser(project, p.Lead.Name, projRole.Name, actor.Name, actor.DisplayName, "user", projPerm, false, false, false, false)
+									//addUser(project, projRole, member.Name, member.DisplayName, actor.Name, allProjectUsers, member.EmailAddress)
+								} else {
+									// QUE???
+									excelutils.Check(nil)
+								}
 							}
 						}
 					}
@@ -287,18 +296,21 @@ func CreateProjectPermissionsReport(cfg ReportConfig) { //nolint:funlen
 						max := 50
 						for cont {
 							members, _, err := jiraClient.Group.SearchPermissionsWithOptionsWithContext(context.Background(), &jira.PermissionSearchOptions{StartAt: start, MaxResults: max, ProjectKey: project.Key, Permissions: perm})
-							excelutils.Check(err)
-							if members != nil {
-								for _, mem := range *members {
-									fmt.Printf("Permissions: %s User: %s\n", perm, mem.Name)
+							if err == nil {
+								if members != nil {
+									for _, mem := range *members {
+										fmt.Printf("Permissions: %s User: %s\n", perm, mem.Name)
 
-									addUser(project, p.Lead.Name, "PermSearch", mem.Name, mem.DisplayName, "user", projPerm, perm == permissions[2], perm == permissions[1], perm == permissions[0], mem.Active)
+										addUser(project, p.Lead.Name, "PermSearch", mem.Name, mem.DisplayName, "user", projPerm, perm == permissions[2], perm == permissions[1], perm == permissions[0], mem.Active)
+									}
+									if len(*members) != max {
+										cont = false
+									} else {
+										start = start + max
+									}
 								}
-								if len(*members) != max {
-									cont = false
-								} else {
-									start = start + max
-								}
+							} else {
+								cont = false
 							}
 						}
 					}
