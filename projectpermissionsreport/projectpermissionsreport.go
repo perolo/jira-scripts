@@ -223,7 +223,7 @@ func CreateProjectPermissionsReport(cfg ReportConfig) { //nolint:funlen
 	jiraClient.Debug = false
 	projects, _, err := jiraClient.Project.GetList()
 	excelutils.Check(err)
-	for _, project := range *projects {
+	for _, project := range projects.Values {
 		if (cfg.ProjectCategory == "") || (project.ProjectCategory.Name == cfg.ProjectCategory) {
 
 			projPerm, closedDown := jirautils.GetPermissionScheme(jiraClient, project.Key, cfg.Archivedwf)
